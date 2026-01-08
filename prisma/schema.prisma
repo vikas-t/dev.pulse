@@ -1,0 +1,120 @@
+// Prisma schema for Model Brief - Developer-focused AI news briefing
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Main articles table - stores everything in one place
+model Article {
+  id        String   @id @default(uuid())
+  title     String
+  url       String   @unique
+  source    String   // 'github', 'hn', 'reddit', 'arxiv', 'blog', 'devto'
+  sourceId  String?  @map("source_id") // Original ID from source
+  publishedAt DateTime @map("published_at")
+
+  // Developer Content (AI-generated)
+  summary          String[]  // Array of bullet points
+  insight          String?   // "Why this matters for your code"
+  codeExample      String?   @map("code_example")
+  codeLanguage     String?   @map("code_language")
+  installCommand   String?   @map("installation_command")
+  migrationGuide   String?   @map("migration_guide")
+
+  // Developer Metadata
+  author   String?
+  domain   String?
+  category String? // 'breaking', 'library', 'sdk', 'performance', 'research', 'security'
+
+  // Tech Stack Filtering (CRITICAL for MVP)
+  languages  String[]  // ['python', 'javascript', 'rust']
+  frameworks String[]  // ['pytorch', 'tensorflow', 'langchain']
+  topics     String[]  // ['llm', 'computer-vision', 'rag']
+
+  // GitHub-specific fields
+  githubRepo       String?   @map("github_repo")
+  githubStars      Int?      @map("github_stars")
+  githubLanguage   String?   @map("github_language")
+  githubLastCommit DateTime? @map("github_last_commit")
+  githubReleaseTag String?   @map("github_release_tag")
+  isGithubTrending Boolean   @default(false) @map("is_github_trending")
+
+  // Importance scoring (developer-weighted)
+  importanceScore     Int      @map("importance_score")
+  importanceLabel     String   @map("importance_label") // 'BREAKING', 'MAJOR', 'MINOR', 'INFO'
+  aiReasoning         String?  @map("ai_reasoning")
+  humanReviewed       Boolean  @default(false) @map("human_reviewed")
+  affectsProduction   Boolean  @default(false) @map("affects_production")
+
+  // Engagement
+  sourceScore       Int?    @map("source_score")
+  commentCount      Int?    @map("comment_count")
+  hnDiscussionUrl   String? @map("hn_discussion_url")
+  redditDiscussionUrl String? @map("reddit_discussion_url")
+
+  // System
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  duplicates ArticleDuplicate[]
+  views      ArticleView[]
+
+  @@index([publishedAt(sort: Desc)])
+  @@index([importanceScore(sort: Desc)])
+  @@index([source])
+  @@index([category])
+  @@index([githubRepo])
+  @@map("articles")
+}
+
+// Track duplicates (same article from multiple sources)
+model ArticleDuplicate {
+  id                  String   @id @default(uuid())
+  canonicalArticleId  String   @map("canonical_article_id")
+  duplicateUrl        String   @map("duplicate_url")
+  duplicateTitle      String?  @map("duplicate_title")
+  duplicateSource     String?  @map("duplicate_source")
+  detectedAt          DateTime @default(now()) @map("detected_at")
+
+  canonicalArticle    Article  @relation(fields: [canonicalArticleId], references: [id], onDelete: Cascade)
+
+  @@map("article_duplicates")
+}
+
+// User preferences (tech stack filtering, stored in localStorage + DB backup)
+model UserPreference {
+  id                     String   @id @default(uuid())
+  sessionId              String   @unique @map("session_id")
+  languages              String[] // ['python', 'javascript']
+  frameworks             String[] // ['pytorch', 'langchain']
+  topics                 String[] // ['llm', 'rag']
+  showResearch           Boolean  @default(true) @map("show_research")
+  keyboardShortcutsEnabled Boolean @default(true) @map("keyboard_shortcuts_enabled")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("user_preferences")
+}
+
+// User interactions (analytics)
+model ArticleView {
+  id         String   @id @default(uuid())
+  articleId  String   @map("article_id")
+  sessionId  String   @map("session_id")
+  viewedAt   DateTime @default(now()) @map("viewed_at")
+  expanded   Boolean  @default(false)
+  copiedCode Boolean  @default(false) @map("copied_code")
+  helpfulVote Boolean? @map("helpful_vote")
+
+  article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([articleId])
+  @@map("article_views")
+}
