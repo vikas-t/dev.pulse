@@ -1,6 +1,6 @@
 import { RawArticle, FetchResult } from './types'
 
-const USE_MOCK_DATA = true // Toggle this to switch to real API
+const USE_MOCK_DATA = process.env.USE_MOCK_DATA === 'true'
 
 // Mock Hacker News stories
 const MOCK_HN_STORIES: RawArticle[] = [

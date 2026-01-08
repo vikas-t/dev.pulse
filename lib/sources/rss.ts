@@ -1,6 +1,6 @@
 import { FetchResult } from './types'
 
-const USE_MOCK_DATA = true
+const USE_MOCK_DATA = process.env.USE_MOCK_DATA === 'true'
 
 /**
  * Fetch from AI company blogs via RSS
