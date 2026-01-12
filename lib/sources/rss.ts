@@ -16,5 +16,11 @@ export async function fetchRSSData(): Promise<FetchResult> {
     }
   }
 
-  throw new Error('Real RSS feed parser not implemented yet')
+  // Real RSS feed parser not implemented yet - return empty for now
+  console.log('[RSS] Real API not implemented yet, returning empty')
+  return {
+    articles: [],
+    fetchedAt: new Date(),
+    source: 'blog',
+  }
 }

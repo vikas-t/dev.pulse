@@ -13,7 +13,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Model Brief - Developer AI News",
+  title: "dev.pulse - Developer AI News",
   description: "Daily AI news briefing for developers with code examples and GitHub integration",
 };
 

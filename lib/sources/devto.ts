@@ -16,5 +16,11 @@ export async function fetchDevToData(): Promise<FetchResult> {
     }
   }
 
-  throw new Error('Real Dev.to API not implemented yet')
+  // Real Dev.to API not implemented yet - return empty for now
+  console.log('[Dev.to] Real API not implemented yet, returning empty')
+  return {
+    articles: [],
+    fetchedAt: new Date(),
+    source: 'devto',
+  }
 }

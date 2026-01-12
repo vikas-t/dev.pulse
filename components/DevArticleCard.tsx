@@ -9,9 +9,10 @@ interface Article {
   title: string
   url: string
   source: string
-  category: 'breaking' | 'library' | 'sdk' | 'performance' | 'research' | 'security'
-  importanceLabel: string
+  category: 'breaking' | 'library' | 'sdk' | 'launch' | 'trending' | 'industry' | 'tools' | 'performance' | 'known_issue' | 'case_study' | 'research' | 'community' | 'security'
+  importanceLabel: 'BREAKING' | 'MAJOR' | 'NOTABLE' | 'INFO' | 'NOISE'
   importanceScore: number
+  tags: string[]  // Emoji tags for visual scanning
 
   // Content
   summary: string[]
@@ -42,6 +43,22 @@ interface DevArticleCardProps {
   index?: number
 }
 
+// Helper to get tooltip text for emoji tags
+function getTagTooltip(tag: string): string {
+  const tooltips: Record<string, string> = {
+    '🔴': 'BREAKING - Breaking changes',
+    '🐛': 'KNOWN ISSUE - Bugs/warnings',
+    '🚀': 'LAUNCH - Product launches',
+    '⭐': 'TRENDING - GitHub fast-growers',
+    '⚡': 'PERFORMANCE - Speed/benchmarks',
+    '🛠️': 'TOOLS - Developer tools',
+    '🏭': 'CASE STUDY - Production stories',
+    '📰': 'INDUSTRY - Company news',
+    '🔒': 'SECURITY - CVEs/vulnerabilities',
+  }
+  return tooltips[tag] || tag
+}
+
 export function DevArticleCard({ article, index }: DevArticleCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -50,12 +67,24 @@ export function DevArticleCard({ article, index }: DevArticleCardProps) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-3">
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Smart Emoji Tags */}
+          {article.tags && article.tags.length > 0 && (
+            <div className="flex items-center gap-1">
+              {article.tags.map((tag, i) => (
+                <span key={i} className="text-base" title={getTagTooltip(tag)}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
           <CategoryBadge category={article.category} />
           <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
             article.importanceLabel === 'BREAKING' ? 'bg-red-500/20 text-red-400' :
             article.importanceLabel === 'MAJOR' ? 'bg-blue-500/20 text-blue-400' :
-            article.importanceLabel === 'MINOR' ? 'bg-green-500/20 text-green-400' :
-            'bg-zinc-500/20 text-zinc-400'
+            article.importanceLabel === 'NOTABLE' ? 'bg-green-500/20 text-green-400' :
+            article.importanceLabel === 'INFO' ? 'bg-zinc-500/20 text-zinc-400' :
+            'bg-zinc-600/20 text-zinc-500'  // NOISE
           }`}>
             {article.importanceLabel}
           </span>

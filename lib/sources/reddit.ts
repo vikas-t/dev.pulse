@@ -16,5 +16,11 @@ export async function fetchRedditData(): Promise<FetchResult> {
     }
   }
 
-  throw new Error('Real Reddit API not implemented yet')
+  // Real Reddit API not implemented yet - return empty for now
+  console.log('[Reddit] Real API not implemented yet, returning empty')
+  return {
+    articles: [],
+    fetchedAt: new Date(),
+    source: 'reddit',
+  }
 }

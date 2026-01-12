@@ -125,6 +125,7 @@ export async function runPipeline(): Promise<PipelineResult> {
             author: article.author || null,
             domain: article.domain || null,
             category: scoring.category,
+            tags: scoring.tags,
 
             // Tech stack
             languages: techTags.languages,
@@ -157,6 +158,7 @@ export async function runPipeline(): Promise<PipelineResult> {
             insight: summary?.insight || null,
             importanceScore: scoring.score,
             importanceLabel: scoring.label,
+            tags: scoring.tags,
             updatedAt: new Date(),
           },
         })

@@ -16,5 +16,11 @@ export async function fetchArxivData(): Promise<FetchResult> {
     }
   }
 
-  throw new Error('Real arXiv API not implemented yet')
+  // Real arXiv API not implemented yet - return empty for now
+  console.log('[arXiv] Real API not implemented yet, returning empty')
+  return {
+    articles: [],
+    fetchedAt: new Date(),
+    source: 'arxiv',
+  }
 }

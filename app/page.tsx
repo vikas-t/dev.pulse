@@ -8,9 +8,10 @@ interface Article {
   title: string
   url: string
   source: string
-  category: 'breaking' | 'library' | 'sdk' | 'performance' | 'research' | 'security'
-  importanceLabel: string
+  category: 'breaking' | 'library' | 'sdk' | 'launch' | 'trending' | 'industry' | 'tools' | 'performance' | 'known_issue' | 'case_study' | 'research' | 'community' | 'security'
+  importanceLabel: 'BREAKING' | 'MAJOR' | 'NOTABLE' | 'INFO' | 'NOISE'
   importanceScore: number
+  tags: string[]
   summary: string[]
   insight?: string | null
   codeExample?: string | null
@@ -26,6 +27,7 @@ interface Article {
   author?: string | null
   publishedAt: Date | string
   hnDiscussionUrl?: string | null
+  section?: 'critical' | 'noteworthy' | 'spotlight'
 }
 
 // Mock data for development (when database is empty)
@@ -38,6 +40,7 @@ const MOCK_ARTICLES: Article[] = [
     category: 'breaking',
     importanceLabel: 'BREAKING',
     importanceScore: 95,
+    tags: ['🔴'],
     summary: [
       'Added support for Phi-2 and Mixtral models',
       'BREAKING: Removed deprecated AutoModelWithLMHead class',
@@ -74,11 +77,12 @@ model = AutoModelForCausalLM.from_pretrained("gpt2")`,
   {
     id: '2',
     title: 'LangChain 0.1.0: Stable API Release',
-    url: 'https://github.com/langchain-ai/langchain/releases/tag/v0.1.0',
+    url: 'https://github.com/langchain-ai/langchain/releases/tag/v0.36.0',
     source: 'github',
     category: 'breaking',
     importanceLabel: 'MAJOR',
     importanceScore: 88,
+    tags: ['🚀', '🔴'],
     summary: [
       'First stable release with breaking changes to LCEL syntax',
       'New streaming API for real-time responses',
@@ -114,6 +118,7 @@ print(result)`,
     category: 'library',
     importanceLabel: 'MAJOR',
     importanceScore: 82,
+    tags: ['⭐', '🛠️'],
     summary: [
       'Run LLMs locally on macOS, Linux, and Windows',
       'Optimized inference with GPU acceleration',
@@ -199,7 +204,7 @@ export default function Home() {
       <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="mx-auto max-w-4xl px-6 py-6">
           <h1 className="text-2xl font-bold text-zinc-100">
-            Model Brief
+            dev.pulse
           </h1>
           <p className="text-sm text-zinc-400 mt-1">
             Today's Top {articles.length} AI Updates for Developers
@@ -220,10 +225,72 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {articles.map((article, index) => (
-              <DevArticleCard key={article.id} article={article} index={index} />
-            ))}
+          <div className="space-y-8">
+            {/* Critical Section */}
+            {articles.filter(a => a.section === 'critical').length > 0 && (
+              <section>
+                <div className="mb-4 pb-2 border-b border-red-900/30">
+                  <h2 className="text-sm font-bold text-red-400 uppercase tracking-wider flex items-center gap-2">
+                    <span>🔴</span>
+                    <span>Critical & Breaking</span>
+                  </h2>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Breaking changes, security updates, critical bugs
+                  </p>
+                </div>
+                <div className="space-y-6">
+                  {articles
+                    .filter(a => a.section === 'critical')
+                    .map((article, index) => (
+                      <DevArticleCard key={article.id} article={article} index={index} />
+                    ))}
+                </div>
+              </section>
+            )}
+
+            {/* Noteworthy Section */}
+            {articles.filter(a => a.section === 'noteworthy' || !a.section).length > 0 && (
+              <section>
+                <div className="mb-4 pb-2 border-b border-green-900/30">
+                  <h2 className="text-sm font-bold text-green-400 uppercase tracking-wider flex items-center gap-2">
+                    <span>🟢</span>
+                    <span>New & Noteworthy</span>
+                  </h2>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Launches, tools, trending projects, performance insights
+                  </p>
+                </div>
+                <div className="space-y-6">
+                  {articles
+                    .filter(a => a.section === 'noteworthy' || !a.section)
+                    .map((article, index) => (
+                      <DevArticleCard key={article.id} article={article} index={index} />
+                    ))}
+                </div>
+              </section>
+            )}
+
+            {/* GitHub Spotlight Section */}
+            {articles.filter(a => a.section === 'spotlight').length > 0 && (
+              <section>
+                <div className="mb-4 pb-2 border-b border-purple-900/30">
+                  <h2 className="text-sm font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2">
+                    <span>⭐</span>
+                    <span>GitHub Spotlight</span>
+                  </h2>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Fastest-growing AI/ML repositories
+                  </p>
+                </div>
+                <div className="space-y-6">
+                  {articles
+                    .filter(a => a.section === 'spotlight')
+                    .map((article, index) => (
+                      <DevArticleCard key={article.id} article={article} index={index} />
+                    ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </main>

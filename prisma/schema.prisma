@@ -5,8 +5,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")       // Connection pooler for runtime queries
+  directUrl = env("DIRECT_URL")         // Direct connection for migrations
 }
 
 // Main articles table - stores everything in one place
@@ -29,7 +30,8 @@ model Article {
   // Developer Metadata
   author   String?
   domain   String?
-  category String? // 'breaking', 'library', 'sdk', 'performance', 'research', 'security'
+  category String? // 'breaking', 'library', 'sdk', 'launch', 'trending', 'industry', 'tools', 'performance', 'known_issue', 'case_study', 'research', 'community', 'security'
+  tags     String[] @default([]) // Visual tags: ['🔴', '🐛', '🚀', '⭐', '⚡', '🛠️', '🏭', '📰', '🔒']
 
   // Tech Stack Filtering (CRITICAL for MVP)
   languages  String[]  // ['python', 'javascript', 'rust']
@@ -46,7 +48,7 @@ model Article {
 
   // Importance scoring (developer-weighted)
   importanceScore     Int      @map("importance_score")
-  importanceLabel     String   @map("importance_label") // 'BREAKING', 'MAJOR', 'MINOR', 'INFO'
+  importanceLabel     String   @map("importance_label") // 'BREAKING', 'MAJOR', 'NOTABLE', 'INFO', 'NOISE'
   aiReasoning         String?  @map("ai_reasoning")
   humanReviewed       Boolean  @default(false) @map("human_reviewed")
   affectsProduction   Boolean  @default(false) @map("affects_production")

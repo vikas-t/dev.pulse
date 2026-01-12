@@ -62,11 +62,89 @@ export async function fetchTopStories(limit: number = 30): Promise<FetchResult> 
     }
   }
 
-  // TODO: Real Hacker News API implementation
-  // 1. Fetch top story IDs: https://hacker-news.firebaseio.com/v0/topstories.json
-  // 2. Fetch each story details: https://hacker-news.firebaseio.com/v0/item/{id}.json
-  // 3. Filter for AI/ML keywords
-  throw new Error('Real Hacker News API not implemented yet')
+  console.log('[Hacker News] Fetching top stories...')
+
+  try {
+    // Step 1: Fetch top story IDs
+    const topStoriesRes = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json')
+    if (!topStoriesRes.ok) {
+      throw new Error(`HN API error: ${topStoriesRes.status}`)
+    }
+
+    const storyIds: number[] = await topStoriesRes.json()
+
+    // Step 2: Fetch details for first 50 stories (will filter down)
+    const storiesToFetch = storyIds.slice(0, 50)
+    const articles: RawArticle[] = []
+
+    // AI/ML keywords to filter for
+    const keywords = [
+      'ai', 'ml', 'llm', 'gpt', 'chatgpt', 'openai', 'anthropic', 'claude',
+      'machine learning', 'deep learning', 'neural', 'transformer', 'langchain',
+      'pytorch', 'tensorflow', 'huggingface', 'ollama', 'stable diffusion',
+      'midjourney', 'dall-e', 'embedding', 'vector', 'rag', 'fine-tuning',
+      'prompt', 'agent', 'copilot', 'codex', 'model', 'inference'
+    ]
+
+    for (const id of storiesToFetch) {
+      try {
+        const storyRes = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)
+        if (!storyRes.ok) continue
+
+        const story = await storyRes.json()
+        if (!story || story.type !== 'story' || story.dead || story.deleted) continue
+
+        // Filter for AI/ML content
+        const text = `${story.title} ${story.text || ''}`.toLowerCase()
+        const hasKeyword = keywords.some(kw => text.includes(kw.toLowerCase()))
+
+        if (!hasKeyword) continue
+
+        // Extract domain from URL
+        let domain = ''
+        try {
+          if (story.url) {
+            domain = new URL(story.url).hostname.replace('www.', '')
+          }
+        } catch {}
+
+        articles.push({
+          title: story.title,
+          url: story.url || `https://news.ycombinator.com/item?id=${story.id}`,
+          source: 'hn',
+          sourceId: String(story.id),
+          publishedAt: new Date(story.time * 1000),
+          content: story.text || '',
+          excerpt: story.title,
+          author: story.by || 'unknown',
+          domain,
+          score: story.score || 0,
+          commentCount: story.descendants || 0,
+          hnDiscussionUrl: `https://news.ycombinator.com/item?id=${story.id}`,
+        })
+
+        if (articles.length >= limit) break
+      } catch (error) {
+        console.error(`[Hacker News] Error fetching story ${id}:`, error)
+      }
+    }
+
+    console.log(`[Hacker News] Fetched ${articles.length} relevant stories`)
+
+    return {
+      articles,
+      fetchedAt: new Date(),
+      source: 'hackernews',
+    }
+  } catch (error) {
+    console.error('[Hacker News] Error:', error)
+    return {
+      articles: [],
+      fetchedAt: new Date(),
+      source: 'hackernews',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
 }
 
 /**
