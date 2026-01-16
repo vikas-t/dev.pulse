@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
+import { articlesCache } from '@/lib/cache/articles-cache'
 
 /**
  * GET /api/articles/today
@@ -21,6 +22,53 @@ export async function GET(request: Request) {
     const languages = searchParams.get('languages')?.split(',').filter(Boolean)
     const frameworks = searchParams.get('frameworks')?.split(',').filter(Boolean)
     const limit = parseInt(searchParams.get('limit') || '10')
+
+    // Check cache first (only for unfiltered requests for V1 simplicity)
+    const hasFilters = (languages && languages.length > 0) || (frameworks && frameworks.length > 0)
+
+    if (!hasFilters) {
+      const cached = articlesCache.getCached()
+      if (cached) {
+        console.log('[Cache HIT] Returning cached articles')
+
+        // Apply limit to cached results
+        const limitedArticles = cached.slice(0, limit)
+
+        // Calculate distribution from cached data
+        const distribution = {
+          critical: cached.filter(a => a.importanceScore >= 95).length,
+          major: cached.filter(a => a.importanceScore >= 75 && a.importanceScore < 95).length,
+          notable: cached.filter(a => a.importanceScore >= 55 && a.importanceScore < 75).length,
+          info: cached.filter(a => a.importanceScore >= 40 && a.importanceScore < 55).length,
+          trending: cached.filter(a => a.isGithubTrending).length,
+        }
+
+        // Add section labels
+        const articlesWithSections = limitedArticles.map(article => ({
+          ...article,
+          section: article.importanceScore >= 95
+            ? 'critical'
+            : article.isGithubTrending
+              ? 'spotlight'
+              : 'noteworthy'
+        }))
+
+        return NextResponse.json({
+          success: true,
+          articles: articlesWithSections,
+          count: articlesWithSections.length,
+          cached: true,
+          distribution,
+          filters: {
+            languages: [],
+            frameworks: [],
+          },
+        })
+      }
+      console.log('[Cache MISS] Querying database')
+    } else {
+      console.log('[Cache SKIP] Filters applied, querying database')
+    }
 
     // Build where clause for filtering
     const baseWhere: any = {
@@ -133,10 +181,17 @@ export async function GET(request: Request) {
           : 'noteworthy'
     }))
 
+    // Store in cache (only for unfiltered requests)
+    if (!hasFilters) {
+      articlesCache.setCache(balancedFeed)
+      console.log('[Cache] Stored', balancedFeed.length, 'articles in cache')
+    }
+
     return NextResponse.json({
       success: true,
       articles: articlesWithSections,
       count: articlesWithSections.length,
+      cached: false,
       distribution: {
         critical: critical.length,
         major: major.length,
