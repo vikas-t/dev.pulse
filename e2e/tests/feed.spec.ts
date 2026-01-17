@@ -4,6 +4,7 @@ import {
   criticalArticle,
   noteworthyArticle1,
   spotlightArticle,
+  refreshStatusCanRefresh,
 } from '../fixtures/mock-data'
 
 test.describe('Main Feed', () => {
@@ -16,6 +17,15 @@ test.describe('Main Feed', () => {
         body: JSON.stringify(mockArticlesResponse),
       })
     })
+
+    // Mock refresh status API
+    await page.route('**/api/refresh', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(refreshStatusCanRefresh),
+      })
+    })
   })
 
   test('displays header with app title', async ({ page }) => {
@@ -23,7 +33,7 @@ test.describe('Main Feed', () => {
 
     // Check header
     await expect(page.locator('h1')).toContainText('dev.pulse')
-    await expect(page.locator('header')).toContainText('AI Updates for Developers')
+    await expect(page.locator('header')).toContainText('AI Updates')
   })
 
   test('displays correct article count in header', async ({ page }) => {

@@ -134,11 +134,14 @@ export const spotlightArticle: MockArticle = {
   section: 'spotlight',
 }
 
-// Full mock response with all sections
+// Full mock response with all sections (updated with pagination fields)
 export const mockArticlesResponse = {
   success: true,
   articles: [criticalArticle, noteworthyArticle1, noteworthyArticle2, spotlightArticle],
   count: 4,
+  total: 4,
+  hasMore: false,
+  cached: false,
   distribution: {
     critical: 1,
     major: 2,
@@ -157,6 +160,9 @@ export const emptyArticlesResponse = {
   success: true,
   articles: [],
   count: 0,
+  total: 0,
+  hasMore: false,
+  cached: false,
   distribution: {
     critical: 0,
     major: 0,
@@ -183,11 +189,132 @@ export const noteworthyOnlyResponse = {
   success: true,
   articles: [noteworthyArticle1, noteworthyArticle2],
   count: 2,
+  total: 2,
+  hasMore: false,
+  cached: false,
   distribution: {
     critical: 0,
     major: 2,
     notable: 0,
     info: 0,
+    trending: 0,
+  },
+  filters: {
+    languages: [],
+    frameworks: [],
+  },
+}
+
+// Refresh status responses
+export const refreshStatusCanRefresh = {
+  canRefresh: true,
+  lastRefreshAt: null,
+  nextRefreshAt: null,
+}
+
+export const refreshStatusRateLimited = {
+  canRefresh: false,
+  lastRefreshAt: new Date().toISOString(),
+  nextRefreshAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(), // 12 hours from now
+}
+
+// Refresh POST responses
+export const refreshSuccessResponse = {
+  success: true,
+  message: 'Refresh complete',
+  stats: {
+    articlesProcessed: 25,
+    articlesSaved: 20,
+    duration: '15.32s',
+  },
+}
+
+export const refreshRateLimitedResponse = {
+  success: false,
+  rateLimited: true,
+  message: 'Already refreshed today',
+  nextRefreshAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+}
+
+export const refreshErrorResponse = {
+  success: false,
+  message: 'Refresh failed',
+  error: 'Pipeline error',
+}
+
+// Pagination mock responses
+export const firstPageResponse = {
+  success: true,
+  articles: [criticalArticle, noteworthyArticle1],
+  count: 2,
+  total: 25,
+  hasMore: true,
+  cached: false,
+  distribution: {
+    critical: 1,
+    major: 15,
+    notable: 7,
+    info: 2,
+    trending: 0,
+  },
+  filters: {
+    languages: [],
+    frameworks: [],
+  },
+}
+
+export const secondPageResponse = {
+  success: true,
+  articles: [noteworthyArticle2, spotlightArticle],
+  count: 2,
+  total: 25,
+  hasMore: true,
+  cached: true,
+  distribution: {
+    critical: 1,
+    major: 15,
+    notable: 7,
+    info: 2,
+    trending: 0,
+  },
+  filters: {
+    languages: [],
+    frameworks: [],
+  },
+}
+
+export const lastPageResponse = {
+  success: true,
+  articles: [noteworthyArticle1],
+  count: 1,
+  total: 25,
+  hasMore: false,
+  cached: true,
+  distribution: {
+    critical: 1,
+    major: 15,
+    notable: 7,
+    info: 2,
+    trending: 0,
+  },
+  filters: {
+    languages: [],
+    frameworks: [],
+  },
+}
+
+export const emptyPageResponse = {
+  success: true,
+  articles: [],
+  count: 0,
+  total: 25,
+  hasMore: false,
+  cached: true,
+  distribution: {
+    critical: 1,
+    major: 15,
+    notable: 7,
+    info: 2,
     trending: 0,
   },
   filters: {

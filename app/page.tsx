@@ -1,7 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { DevArticleCard } from '@/components/DevArticleCard'
+
+interface RefreshStatus {
+  canRefresh: boolean
+  lastRefreshAt: string | null
+  nextRefreshAt: string | null
+}
+
+interface RefreshResult {
+  success: boolean
+  rateLimited?: boolean
+  message: string
+  nextRefreshAt?: string
+  stats?: {
+    articlesProcessed: number
+    articlesSaved: number
+    duration: string
+  }
+}
 
 interface Article {
   id: string
@@ -155,30 +173,157 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function fetchArticles() {
-      try {
-        const response = await fetch('/api/articles/today?limit=10')
-        const data = await response.json()
+  // Pagination state
+  const [offset, setOffset] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [totalArticles, setTotalArticles] = useState(0)
 
-        if (data.success && data.articles.length > 0) {
-          setArticles(data.articles)
-        } else {
-          // Use mock data if API returns empty or fails
-          console.log('Using mock data (database empty or error)')
-          setArticles(MOCK_ARTICLES)
-        }
-      } catch (err) {
-        console.error('Error fetching articles:', err)
-        // Fallback to mock data on error
+  // Refresh state
+  const [refreshStatus, setRefreshStatus] = useState<RefreshStatus | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
+
+  // Ref for IntersectionObserver sentinel
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+
+  // Fetch refresh status
+  const fetchRefreshStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/refresh')
+      const data = await response.json()
+      setRefreshStatus(data)
+    } catch (err) {
+      console.error('Error fetching refresh status:', err)
+    }
+  }, [])
+
+  // Fetch articles with pagination support
+  const fetchArticles = useCallback(async (newOffset: number, append: boolean = false) => {
+    try {
+      const loadingState = newOffset === 0 ? setLoading : setLoadingMore
+      loadingState(true)
+
+      const response = await fetch(`/api/articles/today?limit=10&offset=${newOffset}`)
+
+      // Check for HTTP errors
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success && (data.articles.length > 0 || newOffset > 0)) {
+        // Use API data if we have articles, or if this is not the first page
+        setArticles(prev => append ? [...prev, ...data.articles] : data.articles)
+        setHasMore(data.hasMore ?? false)
+        setTotalArticles(data.total ?? data.articles.length)
+        setOffset(newOffset)
+      } else if (newOffset === 0) {
+        // Use mock data on initial load when API returns empty or fails
+        console.log('Using mock data (database empty or error)')
         setArticles(MOCK_ARTICLES)
-      } finally {
-        setLoading(false)
+        setHasMore(false)
+        setTotalArticles(MOCK_ARTICLES.length)
+      }
+    } catch (err) {
+      console.error('Error fetching articles:', err)
+      if (newOffset === 0) {
+        // Fallback to mock data on initial load error
+        setArticles(MOCK_ARTICLES)
+        setHasMore(false)
+        setTotalArticles(MOCK_ARTICLES.length)
+      } else {
+        // Show error for pagination failures
+        setArticles(prev => {
+          setTotalArticles(currentTotal => {
+            setError(`Failed to load more. Showing ${prev.length} of ${currentTotal}+ articles.`)
+            return currentTotal
+          })
+          return prev
+        })
+      }
+    } finally {
+      const loadingState = newOffset === 0 ? setLoading : setLoadingMore
+      loadingState(false)
+    }
+  }, [])
+
+  // Handle refresh button click
+  const handleRefresh = async () => {
+    if (isRefreshing || !refreshStatus?.canRefresh) return
+
+    setIsRefreshing(true)
+    setRefreshMessage(null)
+
+    try {
+      const response = await fetch('/api/refresh', { method: 'POST' })
+      const data: RefreshResult = await response.json()
+
+      if (data.rateLimited) {
+        setRefreshMessage('Already refreshed today. Try again tomorrow.')
+      } else if (data.success) {
+        setRefreshMessage(`Refreshed! ${data.stats?.articlesSaved || 0} articles updated.`)
+        // Reset pagination and scroll to top
+        setArticles([])
+        setOffset(0)
+        setHasMore(true)
+        setTotalArticles(0)
+        window.scrollTo(0, 0)
+        // Re-fetch first page
+        await fetchArticles(0, false)
+      } else {
+        setRefreshMessage('Refresh failed. Please try again later.')
+      }
+
+      // Update refresh status
+      await fetchRefreshStatus()
+    } catch (err) {
+      console.error('Error refreshing:', err)
+      setRefreshMessage('Refresh failed. Please try again later.')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchRefreshStatus()
+  }, [fetchRefreshStatus])
+
+  // Initial load
+  useEffect(() => {
+    fetchArticles(0, false)
+  }, [fetchArticles])
+
+  // Infinite scroll with IntersectionObserver
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMore || loadingMore || isRefreshing) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Trigger at 80% of viewport
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !isRefreshing) {
+          console.log(`[Scroll] Triggered load more, current offset=${offset}`)
+          fetchArticles(offset + 10, true)
+        }
+      },
+      { threshold: 0.1, rootMargin: '200px' }
+    )
+
+    observer.observe(loadMoreRef.current)
+    return () => observer.disconnect()
+  }, [offset, hasMore, loadingMore, isRefreshing, fetchArticles])
+
+  // Expose load more function for testing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      ;(window as any).__loadMore = () => {
+        if (hasMore && !loadingMore && !isRefreshing) {
+          fetchArticles(offset + 10, true)
+        }
       }
     }
-
-    fetchArticles()
-  }, [])
+  }, [hasMore, loadingMore, isRefreshing, offset, fetchArticles])
 
   if (loading) {
     return (
@@ -203,12 +348,71 @@ export default function Home() {
       {/* Header */}
       <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="mx-auto max-w-4xl px-6 py-6">
-          <h1 className="text-2xl font-bold text-zinc-100">
-            dev.pulse
-          </h1>
-          <p className="text-sm text-zinc-400 mt-1">
-            Today's Top {articles.length} AI Updates for Developers
-          </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-zinc-100">
+                dev.pulse
+              </h1>
+              <p className="text-sm text-zinc-400 mt-1">
+                {totalArticles > 0
+                  ? `${articles.length} of ${totalArticles} AI Updates (Last 3 Days)`
+                  : `Today's Top ${articles.length} AI Updates for Developers`
+                }
+              </p>
+            </div>
+
+            {/* Refresh Button */}
+            <div className="flex flex-col items-end gap-1">
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing || !refreshStatus?.canRefresh}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+                  transition-all duration-200
+                  ${isRefreshing
+                    ? 'bg-zinc-700 text-zinc-400 cursor-wait'
+                    : refreshStatus?.canRefresh
+                      ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-zinc-100'
+                      : 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed'
+                  }
+                `}
+                title={
+                  refreshStatus?.canRefresh
+                    ? 'Fetch latest articles'
+                    : refreshStatus?.nextRefreshAt
+                      ? `Next refresh available at ${new Date(refreshStatus.nextRefreshAt).toLocaleTimeString()}`
+                      : 'Refresh unavailable'
+                }
+              >
+                <svg
+                  className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
+
+              {refreshMessage && (
+                <p className={`text-xs ${refreshMessage.includes('failed') || refreshMessage.includes('Already') ? 'text-amber-400' : 'text-green-400'}`}>
+                  {refreshMessage}
+                </p>
+              )}
+
+              {!refreshStatus?.canRefresh && refreshStatus?.nextRefreshAt && (
+                <p className="text-xs text-zinc-500">
+                  Next refresh: {new Date(refreshStatus.nextRefreshAt).toLocaleTimeString()}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </header>
 
@@ -290,6 +494,44 @@ export default function Home() {
                     ))}
                 </div>
               </section>
+            )}
+
+            {/* Sentinel for infinite scroll */}
+            <div ref={loadMoreRef} className="h-20" />
+
+            {/* Loading more indicator */}
+            {loadingMore && (
+              <div className="flex justify-center items-center py-8">
+                <svg className="animate-spin h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span className="ml-3 text-zinc-400">Loading more articles...</span>
+              </div>
+            )}
+
+            {/* End of feed message */}
+            {!hasMore && articles.length > 0 && !loadingMore && (
+              <div className="text-center py-8 text-zinc-500 border-t border-zinc-800 mt-8">
+                <p className="text-sm">That's all for the last 3 days!</p>
+                <p className="text-xs mt-2">Showing {articles.length} of {totalArticles} articles</p>
+              </div>
+            )}
+
+            {/* Error message */}
+            {error && (
+              <div className="text-center py-8">
+                <p className="text-amber-400 text-sm">{error}</p>
+                <button
+                  onClick={() => {
+                    setError(null)
+                    fetchArticles(offset + 10, true)
+                  }}
+                  className="mt-3 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-sm"
+                >
+                  Retry
+                </button>
+              </div>
             )}
           </div>
         )}

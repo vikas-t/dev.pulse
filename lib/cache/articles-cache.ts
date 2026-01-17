@@ -16,12 +16,14 @@ import type { Article } from '@prisma/client'
 interface CacheEntry {
   data: Article[]
   timestamp: number
+  epoch: string // YYYY-MM-DD of 3-day window start (UTC)
   isValid: boolean
 }
 
 interface CacheStats {
   isValid: boolean
   timestamp: number | null
+  epoch: string | null
   articleCount: number
   hits: number
   misses: number
@@ -34,13 +36,22 @@ let stats = { hits: 0, misses: 0 }
 export const articlesCache = {
   /**
    * Get cached articles if valid
-   * @returns Cached articles or null if cache miss
+   * @param currentEpoch - YYYY-MM-DD string of 3-day window start (UTC)
+   * @returns Cached articles or null if cache miss/stale
    */
-  getCached(): Article[] | null {
+  getCached(currentEpoch: string): Article[] | null {
     if (!cache || !cache.isValid) {
       stats.misses++
       return null
     }
+
+    // Check if cache epoch matches current epoch (daily rotation)
+    if (cache.epoch !== currentEpoch) {
+      stats.misses++
+      cache.isValid = false
+      return null
+    }
+
     stats.hits++
     return cache.data
   },
@@ -48,11 +59,13 @@ export const articlesCache = {
   /**
    * Store articles in cache
    * @param articles Articles to cache
+   * @param epoch YYYY-MM-DD string of 3-day window start (UTC)
    */
-  setCache(articles: Article[]): void {
+  setCache(articles: Article[], epoch: string): void {
     cache = {
       data: articles,
       timestamp: Date.now(),
+      epoch,
       isValid: true,
     }
   },
@@ -74,6 +87,7 @@ export const articlesCache = {
     return {
       isValid: cache?.isValid ?? false,
       timestamp: cache?.timestamp ?? null,
+      epoch: cache?.epoch ?? null,
       articleCount: cache?.data.length ?? 0,
       hits: stats.hits,
       misses: stats.misses,
