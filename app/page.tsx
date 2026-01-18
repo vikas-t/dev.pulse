@@ -311,10 +311,35 @@ export default function Home() {
 
   // Infinite scroll with IntersectionObserver
   useEffect(() => {
-    if (!loadMoreRef.current) return
+    if (!loadMoreRef.current) {
+      console.log('[Scroll] Sentinel ref not available yet')
+      return
+    }
+
+    // Don't set up observer if no articles loaded yet
+    if (articles.length === 0) {
+      console.log('[Scroll] No articles yet, skipping observer setup')
+      return
+    }
+
+    console.log('[Scroll] Setting up IntersectionObserver', {
+      hasMore: hasMoreRef.current,
+      offset: offsetRef.current,
+      loadingMore: loadingMoreRef.current,
+      isRefreshing: isRefreshingRef.current,
+      articlesCount: articles.length
+    })
 
     const observer = new IntersectionObserver(
       (entries) => {
+        console.log('[Scroll] Observer callback triggered', {
+          isIntersecting: entries[0].isIntersecting,
+          hasMore: hasMoreRef.current,
+          loadingMore: loadingMoreRef.current,
+          isRefreshing: isRefreshingRef.current,
+          offset: offsetRef.current
+        })
+
         // Use refs to avoid stale closure
         if (
           entries[0].isIntersecting &&
@@ -323,7 +348,7 @@ export default function Home() {
           !isRefreshingRef.current
         ) {
           const currentOffset = offsetRef.current
-          console.log(`[Scroll] Triggered load more, current offset=${currentOffset}`)
+          console.log(`[Scroll] ✅ Loading more articles, current offset=${currentOffset}`)
           fetchArticles(currentOffset + 10, true)
         }
       },
@@ -331,8 +356,13 @@ export default function Home() {
     )
 
     observer.observe(loadMoreRef.current)
-    return () => observer.disconnect()
-  }, [fetchArticles])
+    console.log('[Scroll] Observer attached to sentinel')
+
+    return () => {
+      console.log('[Scroll] Cleaning up observer')
+      observer.disconnect()
+    }
+  }, [fetchArticles, articles.length])
 
   // Expose load more function for testing
   useEffect(() => {
