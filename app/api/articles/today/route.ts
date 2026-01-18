@@ -100,34 +100,31 @@ export async function GET(request: Request) {
       baseWhere.frameworks = { hasSome: frameworks }
     }
 
-    // Fetch articles in different score buckets (in parallel)
+    // Fetch ALL articles in different score buckets (in parallel)
+    // No take limits - we want the full 3-day dataset for pagination
     const [critical, major, notable, info, trending] = await Promise.all([
       // Critical: score >= 95 (breaking, security, critical bugs)
       prisma.article.findMany({
         where: { ...baseWhere, importanceScore: { gte: 95 } },
         orderBy: [{ importanceScore: 'desc' }, { publishedAt: 'desc' }],
-        take: 3,
       }),
 
       // Major: score 75-94 (new tools, launches, trending with engagement)
       prisma.article.findMany({
         where: { ...baseWhere, importanceScore: { gte: 75, lt: 95 } },
         orderBy: [{ importanceScore: 'desc' }, { publishedAt: 'desc' }],
-        take: 6,
       }),
 
       // Notable: score 55-74 (launches, tools, performance, case studies)
       prisma.article.findMany({
         where: { ...baseWhere, importanceScore: { gte: 55, lt: 75 } },
         orderBy: [{ importanceScore: 'desc' }, { publishedAt: 'desc' }],
-        take: 4,
       }),
 
       // Info: score 40-54 (research, community, general AI news)
       prisma.article.findMany({
         where: { ...baseWhere, importanceScore: { gte: 40, lt: 55 } },
         orderBy: [{ importanceScore: 'desc' }, { publishedAt: 'desc' }],
-        take: 3,
       }),
 
       // GitHub Trending: Always include fast-growing repos
@@ -137,7 +134,6 @@ export async function GET(request: Request) {
           isGithubTrending: true,
         },
         orderBy: [{ githubStars: 'desc' }, { publishedAt: 'desc' }],
-        take: 2,
       }),
     ])
 
@@ -158,11 +154,13 @@ export async function GET(request: Request) {
       return added
     }
 
-    // 1. Critical section: max 3 items
-    addUnique(critical, 3)
+    // Build the full balanced feed from ALL available articles
+    // (we'll apply pagination limits later when returning)
 
-    // 2. New & Noteworthy: 5-6 items, ensure diversity
-    // Prioritize launches, tools, trending from major bucket
+    // 1. Critical section: add all critical articles
+    addUnique(critical, critical.length)
+
+    // 2. New & Noteworthy: prioritize launches/tools, then others
     const launchesAndTools = major.filter(a =>
       ['launch', 'trending', 'tools', 'library'].includes(a.category || '')
     )
@@ -170,18 +168,15 @@ export async function GET(request: Request) {
       !['launch', 'trending', 'tools', 'library'].includes(a.category || '')
     )
 
-    addUnique(launchesAndTools, 3) // At least 2-3 launches/tools
-    addUnique(otherMajor, 3) // Rest from major bucket
-    addUnique(notable, 3) // Fill with notable
+    addUnique(launchesAndTools, launchesAndTools.length)
+    addUnique(otherMajor, otherMajor.length)
+    addUnique(notable, notable.length)
 
-    // 3. GitHub Spotlight: Always 1-2 trending repos
-    addUnique(trending, 2)
+    // 3. GitHub Spotlight: add all trending repos
+    addUnique(trending, trending.length)
 
-    // 4. Fill remaining slots with info bucket
-    const remaining = limit - balancedFeed.length
-    if (remaining > 0) {
-      addUnique(info, remaining)
-    }
+    // 4. Add all remaining info articles
+    addUnique(info, info.length)
 
     // Store full dataset in cache (only for unfiltered requests)
     if (!hasFilters) {
