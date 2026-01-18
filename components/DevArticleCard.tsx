@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CategoryBadge } from './CategoryBadge'
 import { CodeBlock } from './CodeBlock'
+import { formatArticleDate } from '@/lib/utils/formatDate'
 
 interface Article {
   id: string
@@ -93,16 +94,20 @@ export function DevArticleCard({ article, index }: DevArticleCardProps) {
           )}
         </div>
 
-        {article.githubRepo && (
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <span className="font-mono">{article.githubRepo}</span>
-            {article.githubStars && (
-              <span className="flex items-center gap-1">
-                ⭐ {article.githubStars.toLocaleString()}
-              </span>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-xs text-zinc-500">
+          {article.githubRepo && (
+            <>
+              <span className="font-mono">{article.githubRepo}</span>
+              {article.githubStars && (
+                <span className="flex items-center gap-1">
+                  ⭐ {article.githubStars.toLocaleString()}
+                </span>
+              )}
+              <span>•</span>
+            </>
+          )}
+          <span className="text-zinc-400">{formatArticleDate(article.publishedAt)}</span>
+        </div>
       </div>
 
       {/* Title */}
