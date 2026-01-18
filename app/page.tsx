@@ -187,6 +187,20 @@ export default function Home() {
   // Ref for IntersectionObserver sentinel
   const loadMoreRef = useRef<HTMLDivElement>(null)
 
+  // Refs to avoid stale closures in IntersectionObserver
+  const offsetRef = useRef(offset)
+  const hasMoreRef = useRef(hasMore)
+  const loadingMoreRef = useRef(loadingMore)
+  const isRefreshingRef = useRef(isRefreshing)
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    offsetRef.current = offset
+    hasMoreRef.current = hasMore
+    loadingMoreRef.current = loadingMore
+    isRefreshingRef.current = isRefreshing
+  }, [offset, hasMore, loadingMore, isRefreshing])
+
   // Fetch refresh status
   const fetchRefreshStatus = useCallback(async () => {
     try {
@@ -297,14 +311,20 @@ export default function Home() {
 
   // Infinite scroll with IntersectionObserver
   useEffect(() => {
-    if (!loadMoreRef.current || !hasMore || loadingMore || isRefreshing) return
+    if (!loadMoreRef.current) return
 
     const observer = new IntersectionObserver(
       (entries) => {
-        // Trigger at 80% of viewport
-        if (entries[0].isIntersecting && hasMore && !loadingMore && !isRefreshing) {
-          console.log(`[Scroll] Triggered load more, current offset=${offset}`)
-          fetchArticles(offset + 10, true)
+        // Use refs to avoid stale closure
+        if (
+          entries[0].isIntersecting &&
+          hasMoreRef.current &&
+          !loadingMoreRef.current &&
+          !isRefreshingRef.current
+        ) {
+          const currentOffset = offsetRef.current
+          console.log(`[Scroll] Triggered load more, current offset=${currentOffset}`)
+          fetchArticles(currentOffset + 10, true)
         }
       },
       { threshold: 0.1, rootMargin: '200px' }
@@ -312,18 +332,19 @@ export default function Home() {
 
     observer.observe(loadMoreRef.current)
     return () => observer.disconnect()
-  }, [offset, hasMore, loadingMore, isRefreshing, fetchArticles])
+  }, [fetchArticles])
 
   // Expose load more function for testing
   useEffect(() => {
     if (typeof window !== 'undefined') {
       ;(window as any).__loadMore = () => {
-        if (hasMore && !loadingMore && !isRefreshing) {
-          fetchArticles(offset + 10, true)
+        // Use refs to get current values
+        if (hasMoreRef.current && !loadingMoreRef.current && !isRefreshingRef.current) {
+          fetchArticles(offsetRef.current + 10, true)
         }
       }
     }
-  }, [hasMore, loadingMore, isRefreshing, offset, fetchArticles])
+  }, [fetchArticles])
 
   if (loading) {
     return (
