@@ -16,7 +16,9 @@ dev.pulse aggregates AI news from multiple sources, scores them with AI, and del
 - **Visual Tags** — Quick-scan emoji tags: 🔴 Breaking, 🚀 Launch, ⭐ Trending, 🔒 Security, 🐛 Known Issue
 - **Code Examples** — Install commands, quick start snippets, and migration guides
 - **Tech Stack Filtering** — Filter by language (Python, JS, Go) or framework (PyTorch, LangChain)
-- **Multiple Sources** — GitHub releases, Hacker News, Reddit, arXiv, RSS feeds
+- **Multiple Sources** — GitHub releases, Hacker News, arXiv (cs.AI, cs.LG, cs.CL), Reddit, RSS feeds
+- **Save Articles** — Star articles to save for later reading, with a persistent collapsible sidebar
+- **Unlimited Scroll** — Infinite scroll through recent articles, then automatically loads historical data
 
 ## Tech Stack
 
@@ -68,7 +70,8 @@ Required environment variables:
 ```env
 DATABASE_URL="postgresql://..."
 OPENAI_API_KEY="sk-..."
-GITHUB_TOKEN="ghp_..."  # Optional but recommended
+GITHUB_TOKEN="ghp_..."    # Optional but recommended (increases GitHub API rate limits)
+ADMIN_SECRET="some-secret" # For bypassing refresh rate limit (optional)
 ```
 
 ### Database Setup
@@ -123,21 +126,34 @@ dev.pulse/
 ├── app/
 │   ├── api/
 │   │   ├── articles/today/   # Balanced feed API
+│   │   ├── refresh/          # Manual refresh endpoint
 │   │   └── cron/             # Pipeline triggers
 │   ├── layout.tsx
 │   └── page.tsx              # Main feed page
 ├── components/
 │   ├── CategoryBadge.tsx     # Category labels
 │   ├── CodeBlock.tsx         # Syntax highlighting
-│   └── DevArticleCard.tsx    # Article card component
+│   ├── DevArticleCard.tsx    # Article card component
+│   ├── MobileMenu.tsx        # Mobile hamburger menu
+│   ├── SaveButton.tsx        # Star save/unsave toggle
+│   ├── SavedArticlesPanel.tsx # Collapsible saved articles sidebar
+│   └── Toast.tsx             # Toast notifications
+├── hooks/
+│   ├── useSavedArticles.ts   # Saved articles context hook
+│   └── useToast.ts           # Toast state management
 ├── lib/
 │   ├── ai/
 │   │   ├── scorer.ts         # AI importance scoring
 │   │   └── summarizer.ts     # AI summarization
+│   ├── cache/
+│   │   └── articles-cache.ts # In-memory article cache
+│   ├── context/
+│   │   └── SavedArticlesContext.tsx # Saved articles provider
 │   ├── pipeline/
 │   │   ├── orchestrator.ts   # Main pipeline
 │   │   └── dedup.ts          # Deduplication
 │   └── sources/              # Data source fetchers
+│       ├── arxiv.ts
 │       ├── github.ts
 │       ├── hackernews.ts
 │       └── ...
