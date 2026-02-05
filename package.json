@@ -13,6 +13,7 @@
     "e2e:report": "playwright show-report"
   },
   "dependencies": {
+    "fast-xml-parser": "^5.3.3",
     "next": "^16.1.1",
     "openai": "^6.15.0",
     "react": "^19.2.3",

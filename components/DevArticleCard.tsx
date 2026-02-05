@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CategoryBadge } from './CategoryBadge'
 import { CodeBlock } from './CodeBlock'
+import { SaveButton } from './SaveButton'
 import { formatArticleDate } from '@/lib/utils/formatDate'
 
 interface Article {
@@ -42,6 +43,8 @@ interface Article {
 interface DevArticleCardProps {
   article: Article
   index?: number
+  isSaved?: boolean
+  onToggleSave?: () => void
 }
 
 // Helper to get tooltip text for emoji tags
@@ -60,7 +63,7 @@ function getTagTooltip(tag: string): string {
   return tooltips[tag] || tag
 }
 
-export function DevArticleCard({ article, index }: DevArticleCardProps) {
+export function DevArticleCard({ article, index, isSaved = false, onToggleSave }: DevArticleCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   return (
@@ -107,6 +110,9 @@ export function DevArticleCard({ article, index }: DevArticleCardProps) {
             </>
           )}
           <span className="text-zinc-400">{formatArticleDate(article.publishedAt)}</span>
+          {onToggleSave && (
+            <SaveButton isSaved={isSaved} onToggle={onToggleSave} size="sm" />
+          )}
         </div>
       </div>
 

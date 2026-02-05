@@ -1,144 +1,5 @@
 # Claude Agent Instructions - AI News Bulletin
 
-## 🚨🚨🚨 CRITICAL: TASK TRACKING 🚨🚨🚨
-
-**⚠️ MANDATORY REQUIREMENT - READ THIS FIRST ⚠️**
-
-**THIS PROJECT USES `bd` (BEADS) FOR ***ALL*** TASK TRACKING.**
-
-**❌ NEVER USE TodoWrite - IT IS FORBIDDEN IN THIS PROJECT ❌**
-
-**✅ EVERY SINGLE TASK MUST BE TRACKED WITH `bd` ✅**
-
-**"ALL TASKS" MEANS:**
-- ✅ Code implementation tasks
-- ✅ Bug fixes
-- ✅ Documentation updates
-- ✅ Research and investigation
-- ✅ Reading files and gathering information
-- ✅ ANY user request, no matter how small
-
----
-
-## 🚀 START EVERY SESSION WITH THIS
-
-**FIRST THING when you receive ANY user message:**
-
-1. Run `bd ready --json` to check for existing unblocked work
-2. Run `bd list --status in_progress --json` to see mid-flight tasks
-3. If the user is asking you to do something new, **STOP** and follow the workflow below
-
----
-
-## 🛑 STOP: Beads Workflow is MANDATORY
-
-**EVERY TIME the user asks you to do ANYTHING, this is the ONLY valid workflow:**
-
-### Step 1: CREATE THE BEAD FIRST (before reading ANY files or launching ANY agents)
-```bash
-bd create --title="<exactly what user asked>" --type=task --priority=2 --description="<brief context>"
-```
-YOU WILL GET AN ID like `model-brief-abc123`. **SAVE THIS ID.**
-
-### Step 2: MARK IT IN PROGRESS (before doing the actual work)
-```bash
-bd update model-brief-abc123 --status=in_progress
-```
-
-### Step 3: NOW YOU CAN WORK
-- Read files
-- Launch agents
-- Write code
-- Research
-- Whatever the task requires
-
-### Step 4: UPDATE AS YOU GO (not just at the end!)
-```bash
-# Found a problem while working?
-bd create "Found issue with X" -t bug -p 1
-bd dep add model-brief-NEW_ID model-brief-abc123 --type discovered-from
-
-# Scope changed?
-bd update model-brief-abc123 -d "Updated: now also includes Y"
-```
-
-### Step 5: CLOSE WHEN DONE
-```bash
-bd close model-brief-abc123 --reason "Completed: <what you did>"
-```
-
----
-
-## Beads Workflow Decision Tree
-
-```
-User sends message
-         ↓
-    [STOP HERE]
-         ↓
-Run: bd ready (check existing work)
-         ↓
-Run: bd create "User's request"  ← YOU ARE HERE (not reading files yet!)
-         ↓
-Get issue ID: model-brief-abc123
-         ↓
-Run: bd update model-brief-abc123 --status=in_progress
-         ↓
-    NOW you can:
-    - Read files
-    - Launch agents
-    - Write code
-         ↓
-    (while working)
-    Update bd as you discover things
-         ↓
-Run: bd close model-brief-abc123
-         ↓
-    DONE
-```
-
----
-
-## ⚠️ Common Mistakes (DON'T DO THESE)
-
-### ❌ WRONG: Reading files first
-```
-User: "Fix the scoring bug"
-Claude: *launches Explore agent immediately*
-Claude: *reads scorer.ts*
-Claude: "Oh right, let me create a bead now"  ← TOO LATE
-```
-
-### ✅ CORRECT: Bead first, THEN work
-```
-User: "Fix the scoring bug"
-Claude: *stops*
-Claude: bd create --title="Fix scoring bug" --type=task --priority=1
-Claude: bd update model-brief-xyz --status=in_progress
-Claude: *NOW launches Explore agent*
-Claude: *NOW reads scorer.ts*
-```
-
----
-
-## CRITICAL BLOCKING RULES
-
-**These actions are FORBIDDEN before `bd create`:**
-
-❌ NO reading files before `bd create`
-❌ NO launching agents before `bd create`
-❌ NO writing code before `bd create`
-❌ NO editing files before `bd create`
-❌ NO "I'll create the bead later"
-
-✅ ALWAYS `bd create` FIRST, then work
-
----
-
-See `AGENTS.md` for complete workflow instructions.
-
----
-
 ## Project Overview
 
 **Project Name:** AI News Bulletin
@@ -177,67 +38,67 @@ See `AGENTS.md` for complete workflow instructions.
 
 ---
 
-## DO's ✅
+## DO's
 
 ### Planning & Architecture
-- ✅ **DO** read all planning documents before implementing
-- ✅ **DO** follow the tech stack defined in PLAN.md
-- ✅ **DO** follow the design system in DESIGNS.md
-- ✅ **DO** ask questions when unclear
-- ✅ **DO** keep it simple - avoid over-engineering
+- **DO** read all planning documents before implementing
+- **DO** follow the tech stack defined in PLAN.md
+- **DO** follow the design system in DESIGNS.md
+- **DO** ask questions when unclear
+- **DO** keep it simple - avoid over-engineering
 
 ### Code Quality (Basics)
-- ✅ **DO** use TypeScript with strict mode
-- ✅ **DO** handle errors (try/catch, error states)
-- ✅ **DO** use clear, descriptive variable names
-- ✅ **DO** validate API responses before using them
+- **DO** use TypeScript with strict mode
+- **DO** handle errors (try/catch, error states)
+- **DO** use clear, descriptive variable names
+- **DO** validate API responses before using them
 
 ### Security (Essentials Only)
-- ✅ **DO** use environment variables for API keys
-- ✅ **DO** add `.env` to `.gitignore`
-- ✅ **DO** validate user inputs
+- **DO** use environment variables for API keys
+- **DO** add `.env` to `.gitignore`
+- **DO** validate user inputs
 
 ### User Experience (Core)
-- ✅ **DO** show loading states
-- ✅ **DO** show clear error messages
-- ✅ **DO** make it responsive (mobile + desktop)
-- ✅ **DO** provide visual feedback for interactions
+- **DO** show loading states
+- **DO** show clear error messages
+- **DO** make it responsive (mobile + desktop)
+- **DO** provide visual feedback for interactions
 
 ### Data & APIs
-- ✅ **DO** handle API errors gracefully
-- ✅ **DO** validate data from external sources
-- ✅ **DO** deduplicate articles from multiple sources
-- ✅ **DO** store timestamps consistently
+- **DO** handle API errors gracefully
+- **DO** validate data from external sources
+- **DO** deduplicate articles from multiple sources
+- **DO** store timestamps consistently
 
 ---
 
-## DON'Ts ❌
+## DON'Ts
 
 ### Planning & Architecture
-- ❌ **DON'T** implement features not in PLAN.md without discussion
-- ❌ **DON'T** change the tech stack without approval
-- ❌ **DON'T** deviate from DESIGNS.md without reason
-- ❌ **DON'T** over-engineer - keep V1 simple
+- **DON'T** implement features not in PLAN.md without discussion
+- **DON'T** change the tech stack without approval
+- **DON'T** deviate from DESIGNS.md without reason
+- **DON'T** over-engineer - keep V1 simple
 
 ### Code Quality
-- ❌ **DON'T** use `any` type in TypeScript
-- ❌ **DON'T** ignore TypeScript errors
-- ❌ **DON'T** leave console.logs in committed code
-- ❌ **DON'T** skip error handling
+- **DON'T** use `any` type in TypeScript
+- **DON'T** ignore TypeScript errors
+- **DON'T** leave console.logs in committed code
+- **DON'T** skip error handling
 
 ### Security (Critical)
-- ❌ **DON'T** commit API keys or secrets
-- ❌ **DON'T** trust external data without validation
+- **DON'T** commit API keys or secrets
+- **DON'T** trust external data without validation
 
 ### User Experience
-- ❌ **DON'T** leave users staring at blank screens (show loading)
-- ❌ **DON'T** use generic error messages
-- ❌ **DON'T** break responsive design
+- **DON'T** leave users staring at blank screens (show loading)
+- **DON'T** use generic error messages
+- **DON'T** break responsive design
 
 ### Data & APIs
-- ❌ **DON'T** assume external APIs are always available
-- ❌ **DON'T** fetch data on every component render
-- ❌ **DON'T** trust data formats from external sources
+- **DON'T** assume external APIs are always available
+- **DON'T** fetch data on every component render
+- **DON'T** trust data formats from external sources
 
 ---
 
@@ -292,15 +153,14 @@ See `AGENTS.md` for complete workflow instructions.
 
 **V1 Mission:** Fetch AI news from multiple sources, summarize with AI, display in a clean feed.
 
-- ✅ Follow the beads workflow (AGENTS.md)
-- ✅ Read the planning docs
-- ✅ Keep it simple and working
-- ✅ Focus on data quality and usability
-- ❌ Don't over-engineer
-- 🤔 When in doubt, ask
+- Read the planning docs
+- Keep it simple and working
+- Focus on data quality and usability
+- Don't over-engineer
+- When in doubt, ask
 
 **Get it working. Then make it better.**
 
 ---
 
-*Last Updated: 2026-01-03*
+*Last Updated: 2026-01-26*

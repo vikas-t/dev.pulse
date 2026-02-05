@@ -4,12 +4,18 @@ import { articlesCache } from '@/lib/cache/articles-cache'
 
 /**
  * GET /api/articles/today
- * Fetch today's top articles with balanced content diversity
+ * Fetch articles with balanced content diversity and unlimited scroll support
  *
  * Query params:
  * - languages: comma-separated list (e.g., "python,javascript")
  * - frameworks: comma-separated list (e.g., "pytorch,langchain")
  * - limit: number of articles to return (default: 10)
+ * - offset: pagination offset (default: 0)
+ * - older: boolean - fetch historical data older than 3 days (default: false)
+ *
+ * Tiered Data Strategy:
+ * - Recent (last 3 days): Served from in-memory cache (fast)
+ * - Historical (older): Served from database on-demand (slower)
  *
  * Balanced Feed Algorithm:
  * - Critical (2-3): score >= 95 (breaking, security, critical bugs)
@@ -22,7 +28,8 @@ export async function GET(request: Request) {
     const languages = searchParams.get('languages')?.split(',').filter(Boolean)
     const frameworks = searchParams.get('frameworks')?.split(',').filter(Boolean)
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50)
-    const offset = parseInt(searchParams.get('offset') || '0')
+    const offset = Math.max(0, parseInt(searchParams.get('offset') || '0'))
+    const older = searchParams.get('older') === 'true'
 
     // Date range: last 3 days (UTC) for cache and database queries
     const now = new Date()
@@ -34,8 +41,14 @@ export async function GET(request: Request) {
     ))
     const epoch = threeDaysAgo.toISOString().split('T')[0] // YYYY-MM-DD
 
-    // Check cache first (only for unfiltered requests for V1 simplicity)
+    // Check cache first (only for unfiltered, non-historical requests)
     const hasFilters = (languages && languages.length > 0) || (frameworks && frameworks.length > 0)
+
+    // Historical data requests bypass cache and query database directly
+    if (older) {
+      console.log(`[Historical] Fetching older articles (offset=${offset}, limit=${limit})`)
+      return await fetchHistoricalArticles(threeDaysAgo, offset, limit, languages, frameworks)
+    }
 
     if (!hasFilters) {
       const cached = articlesCache.getCached(epoch)
@@ -64,6 +77,14 @@ export async function GET(request: Request) {
               : 'noteworthy'
         }))
 
+        // Get oldest article date for UI
+        const oldestArticle = page.length > 0 ? page[page.length - 1] : null
+        const oldestDate = oldestArticle?.publishedAt
+          ? (oldestArticle.publishedAt instanceof Date
+              ? oldestArticle.publishedAt.toISOString()
+              : oldestArticle.publishedAt)
+          : null
+
         return NextResponse.json({
           success: true,
           articles: articlesWithSections,
@@ -71,6 +92,8 @@ export async function GET(request: Request) {
           total: cached.length,
           hasMore: offset + limit < cached.length,
           cached: true,
+          source: 'cache' as const,
+          oldestDate,
           distribution,
           filters: {
             languages: [],
@@ -197,6 +220,10 @@ export async function GET(request: Request) {
           : 'noteworthy'
     }))
 
+    // Get oldest article date for UI
+    const oldestArticle = page.length > 0 ? page[page.length - 1] : null
+    const oldestDate = oldestArticle?.publishedAt?.toISOString() || null
+
     return NextResponse.json({
       success: true,
       articles: articlesWithSections,
@@ -204,6 +231,8 @@ export async function GET(request: Request) {
       total: balancedFeed.length,
       hasMore: offset + limit < balancedFeed.length,
       cached: false,
+      source: 'cache' as const, // Recent data, will be cached
+      oldestDate,
       distribution: {
         critical: critical.length,
         major: major.length,
@@ -224,6 +253,95 @@ export async function GET(request: Request) {
         success: false,
         articles: [],
         count: 0,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * Fetch historical articles older than the cache window (3 days)
+ * Used for unlimited scroll - when user scrolls past cached data
+ */
+async function fetchHistoricalArticles(
+  beforeDate: Date,
+  offset: number,
+  limit: number,
+  languages?: string[],
+  frameworks?: string[]
+) {
+  try {
+    // Build where clause for historical data
+    const where: Record<string, unknown> = {
+      importanceScore: { gte: 40 },
+      publishedAt: { lt: beforeDate }, // OLDER than cache window
+    }
+
+    // Add tech stack filters if provided
+    if (languages && languages.length > 0) {
+      where.languages = { hasSome: languages }
+    }
+    if (frameworks && frameworks.length > 0) {
+      where.frameworks = { hasSome: frameworks }
+    }
+
+    // Fetch historical articles with importance-first ordering
+    const articles = await prisma.article.findMany({
+      where,
+      orderBy: [
+        { importanceScore: 'desc' },
+        { publishedAt: 'desc' },
+      ],
+      skip: offset,
+      take: limit,
+    })
+
+    // Check if more historical articles exist
+    const totalHistorical = await prisma.article.count({ where })
+    const hasMore = offset + limit < totalHistorical
+
+    // Get oldest article date for UI
+    const oldestArticle = articles.length > 0 ? articles[articles.length - 1] : null
+    const oldestDate = oldestArticle?.publishedAt?.toISOString() || null
+
+    // Add section labels (all historical articles go to 'historical' section)
+    const articlesWithSections = articles.map(article => ({
+      ...article,
+      section: 'historical' as const,
+    }))
+
+    console.log(`[Historical] Found ${articles.length} articles, hasMore=${hasMore}, oldest=${oldestDate}`)
+
+    return NextResponse.json({
+      success: true,
+      articles: articlesWithSections,
+      count: articlesWithSections.length,
+      total: totalHistorical,
+      hasMore,
+      cached: false,
+      source: 'database' as const,
+      oldestDate,
+      distribution: {
+        critical: articles.filter(a => a.importanceScore >= 95).length,
+        major: articles.filter(a => a.importanceScore >= 75 && a.importanceScore < 95).length,
+        notable: articles.filter(a => a.importanceScore >= 55 && a.importanceScore < 75).length,
+        info: articles.filter(a => a.importanceScore >= 40 && a.importanceScore < 55).length,
+        trending: articles.filter(a => a.isGithubTrending).length,
+      },
+      filters: {
+        languages: languages || [],
+        frameworks: frameworks || [],
+      },
+    })
+  } catch (error) {
+    console.error('[Historical] Error fetching historical articles:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        articles: [],
+        count: 0,
+        hasMore: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }

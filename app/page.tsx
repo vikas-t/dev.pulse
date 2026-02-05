@@ -2,6 +2,10 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { DevArticleCard } from '@/components/DevArticleCard'
+import { SavedArticlesPanel } from '@/components/SavedArticlesPanel'
+import { Toast } from '@/components/Toast'
+import { useSavedArticles } from '@/hooks/useSavedArticles'
+import { useToast } from '@/hooks/useToast'
 
 interface RefreshStatus {
   canRefresh: boolean
@@ -45,7 +49,7 @@ interface Article {
   author?: string | null
   publishedAt: Date | string
   hnDiscussionUrl?: string | null
-  section?: 'critical' | 'noteworthy' | 'spotlight'
+  section?: 'critical' | 'noteworthy' | 'spotlight' | 'historical'
 }
 
 // Mock data for development (when database is empty)
@@ -179,10 +183,20 @@ export default function Home() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [totalArticles, setTotalArticles] = useState(0)
 
+  // Historical data state (for unlimited scroll)
+  const [inHistoricalMode, setInHistoricalMode] = useState(false)
+  const [historicalOffset, setHistoricalOffset] = useState(0)
+  const [oldestDate, setOldestDate] = useState<string | null>(null)
+
   // Refresh state
   const [refreshStatus, setRefreshStatus] = useState<RefreshStatus | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
+
+  // Saved articles panel state (collapsed by default)
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(true)
+  const { savedArticles, isSaved, saveArticle, unsaveArticle, savedCount } = useSavedArticles()
+  const { toast, showToast, hideToast } = useToast()
 
   // Ref for IntersectionObserver sentinel
   const loadMoreRef = useRef<HTMLDivElement>(null)
@@ -192,6 +206,8 @@ export default function Home() {
   const hasMoreRef = useRef(hasMore)
   const loadingMoreRef = useRef(loadingMore)
   const isRefreshingRef = useRef(isRefreshing)
+  const inHistoricalModeRef = useRef(inHistoricalMode)
+  const historicalOffsetRef = useRef(historicalOffset)
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -199,7 +215,9 @@ export default function Home() {
     hasMoreRef.current = hasMore
     loadingMoreRef.current = loadingMore
     isRefreshingRef.current = isRefreshing
-  }, [offset, hasMore, loadingMore, isRefreshing])
+    inHistoricalModeRef.current = inHistoricalMode
+    historicalOffsetRef.current = historicalOffset
+  }, [offset, hasMore, loadingMore, isRefreshing, inHistoricalMode, historicalOffset])
 
   // Fetch refresh status
   const fetchRefreshStatus = useCallback(async () => {
@@ -212,13 +230,20 @@ export default function Home() {
     }
   }, [])
 
-  // Fetch articles with pagination support
-  const fetchArticles = useCallback(async (newOffset: number, append: boolean = false) => {
+  // Fetch articles with pagination support (including historical data)
+  const fetchArticles = useCallback(async (newOffset: number, append: boolean = false, fetchHistorical: boolean = false) => {
     try {
-      const loadingState = newOffset === 0 ? setLoading : setLoadingMore
+      const loadingState = newOffset === 0 && !fetchHistorical ? setLoading : setLoadingMore
       loadingState(true)
 
-      const response = await fetch(`/api/articles/today?limit=10&offset=${newOffset}`)
+      // Build URL based on whether we're fetching historical data
+      const url = fetchHistorical
+        ? `/api/articles/today?limit=10&offset=${newOffset}&older=true`
+        : `/api/articles/today?limit=10&offset=${newOffset}`
+
+      console.log(`[Fetch] ${fetchHistorical ? 'Historical' : 'Recent'} data, offset=${newOffset}`)
+
+      const response = await fetch(url)
 
       // Check for HTTP errors
       if (!response.ok) {
@@ -227,13 +252,49 @@ export default function Home() {
 
       const data = await response.json()
 
-      if (data.success && (data.articles.length > 0 || newOffset > 0)) {
-        // Use API data if we have articles, or if this is not the first page
-        setArticles(prev => append ? [...prev, ...data.articles] : data.articles)
+      if (data.success && (data.articles.length > 0 || newOffset > 0 || fetchHistorical)) {
+        // Use API data - deduplication happens inside setArticles to use current state
+        setArticles(prev => {
+          if (!append) {
+            return data.articles
+          }
+          // Deduplicate articles when appending (especially important at cache/historical boundary)
+          const existingUrls = new Set(prev.map(a => a.url))
+          const newArticles = data.articles.filter((a: Article) => !existingUrls.has(a.url))
+          return [...prev, ...newArticles]
+        })
         setHasMore(data.hasMore ?? false)
-        setTotalArticles(data.total ?? data.articles.length)
-        setOffset(newOffset)
-      } else if (newOffset === 0) {
+
+        // Update oldest date if provided
+        if (data.oldestDate) {
+          setOldestDate(data.oldestDate)
+        }
+
+        // Track offsets based on mode
+        if (fetchHistorical) {
+          // Update historical offset to next position
+          const nextHistoricalOffset = newOffset + data.articles.length
+          setHistoricalOffset(nextHistoricalOffset)
+          // Sync ref immediately to avoid stale closure issues
+          historicalOffsetRef.current = nextHistoricalOffset
+        } else {
+          setTotalArticles(data.total ?? data.articles.length)
+          setOffset(newOffset)
+
+          // Transition to historical mode when recent data is exhausted
+          // This can happen on initial load (append=false) if very few recent articles exist,
+          // or during infinite scroll (append=true) when we reach the end of recent data
+          if (!data.hasMore) {
+            console.log('[Scroll] Recent data exhausted, entering historical mode')
+            setInHistoricalMode(true)
+            inHistoricalModeRef.current = true
+            setHasMore(true) // Reset hasMore - there may be historical data
+            hasMoreRef.current = true
+            setHistoricalOffset(0)
+            historicalOffsetRef.current = 0
+          }
+        }
+      } else if (newOffset === 0 && !fetchHistorical) {
         // Use mock data on initial load when API returns empty or fails
         console.log('Using mock data (database empty or error)')
         setArticles(MOCK_ARTICLES)
@@ -242,7 +303,7 @@ export default function Home() {
       }
     } catch (err) {
       console.error('Error fetching articles:', err)
-      if (newOffset === 0) {
+      if (newOffset === 0 && !fetchHistorical) {
         // Fallback to mock data on initial load error
         setArticles(MOCK_ARTICLES)
         setHasMore(false)
@@ -250,15 +311,12 @@ export default function Home() {
       } else {
         // Show error for pagination failures
         setArticles(prev => {
-          setTotalArticles(currentTotal => {
-            setError(`Failed to load more. Showing ${prev.length} of ${currentTotal}+ articles.`)
-            return currentTotal
-          })
+          setError(`Failed to load more articles. Showing ${prev.length} articles.`)
           return prev
         })
       }
     } finally {
-      const loadingState = newOffset === 0 ? setLoading : setLoadingMore
+      const loadingState = newOffset === 0 && !fetchHistorical ? setLoading : setLoadingMore
       loadingState(false)
     }
   }, [])
@@ -278,11 +336,14 @@ export default function Home() {
         setRefreshMessage('Already refreshed today. Try again tomorrow.')
       } else if (data.success) {
         setRefreshMessage(`Refreshed! ${data.stats?.articlesSaved || 0} articles updated.`)
-        // Reset pagination and scroll to top
+        // Reset pagination and scroll to top (including historical state)
         setArticles([])
         setOffset(0)
         setHasMore(true)
         setTotalArticles(0)
+        setInHistoricalMode(false)
+        setHistoricalOffset(0)
+        setOldestDate(null)
         window.scrollTo(0, 0)
         // Re-fetch first page
         await fetchArticles(0, false)
@@ -299,6 +360,21 @@ export default function Home() {
       setIsRefreshing(false)
     }
   }
+
+  // Handle toggling save state for an article
+  const handleToggleSave = useCallback((article: Article) => {
+    if (isSaved(article.id)) {
+      unsaveArticle(article.id)
+      showToast('Removed from saved')
+    } else {
+      const success = saveArticle(article)
+      if (success) {
+        showToast('Article saved')
+      } else {
+        showToast('Maximum 100 articles saved', 'error')
+      }
+    }
+  }, [isSaved, saveArticle, unsaveArticle, showToast])
 
   useEffect(() => {
     fetchRefreshStatus()
@@ -325,6 +401,8 @@ export default function Home() {
     console.log('[Scroll] Setting up IntersectionObserver', {
       hasMore: hasMoreRef.current,
       offset: offsetRef.current,
+      historicalOffset: historicalOffsetRef.current,
+      inHistoricalMode: inHistoricalModeRef.current,
       loadingMore: loadingMoreRef.current,
       isRefreshing: isRefreshingRef.current,
       articlesCount: articles.length
@@ -337,7 +415,9 @@ export default function Home() {
           hasMore: hasMoreRef.current,
           loadingMore: loadingMoreRef.current,
           isRefreshing: isRefreshingRef.current,
-          offset: offsetRef.current
+          inHistoricalMode: inHistoricalModeRef.current,
+          offset: offsetRef.current,
+          historicalOffset: historicalOffsetRef.current
         })
 
         // Use refs to avoid stale closure
@@ -347,9 +427,17 @@ export default function Home() {
           !loadingMoreRef.current &&
           !isRefreshingRef.current
         ) {
-          const currentOffset = offsetRef.current
-          console.log(`[Scroll] ✅ Loading more articles, current offset=${currentOffset}`)
-          fetchArticles(currentOffset + 10, true)
+          // Determine which offset to use based on mode
+          // Note: historicalOffsetRef tracks the NEXT offset to fetch, offsetRef tracks CURRENT
+          if (inHistoricalModeRef.current) {
+            const nextHistoricalOffset = historicalOffsetRef.current
+            console.log(`[Scroll] ✅ Loading historical articles, offset=${nextHistoricalOffset}`)
+            fetchArticles(nextHistoricalOffset, true, true)
+          } else {
+            const currentOffset = offsetRef.current
+            console.log(`[Scroll] ✅ Loading recent articles, offset=${currentOffset + 10}`)
+            fetchArticles(currentOffset + 10, true, false)
+          }
         }
       },
       { threshold: 0.1, rootMargin: '200px' }
@@ -370,7 +458,12 @@ export default function Home() {
       ;(window as any).__loadMore = () => {
         // Use refs to get current values
         if (hasMoreRef.current && !loadingMoreRef.current && !isRefreshingRef.current) {
-          fetchArticles(offsetRef.current + 10, true)
+          if (inHistoricalModeRef.current) {
+            // historicalOffsetRef already tracks NEXT offset to fetch
+            fetchArticles(historicalOffsetRef.current, true, true)
+          } else {
+            fetchArticles(offsetRef.current + 10, true, false)
+          }
         }
       }
     }
@@ -396,72 +489,109 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Header */}
-      <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="mx-auto max-w-4xl px-6 py-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-zinc-100">
-                dev.pulse
-              </h1>
-              <p className="text-sm text-zinc-400 mt-1">
-                {totalArticles > 0
-                  ? `${articles.length} of ${totalArticles} AI Updates (Last 3 Days)`
-                  : `Today's Top ${articles.length} AI Updates for Developers`
-                }
-              </p>
-            </div>
+      {/* Persistent Saved Articles Sidebar */}
+      <SavedArticlesPanel
+        isCollapsed={isPanelCollapsed}
+        onToggleCollapse={() => setIsPanelCollapsed(!isPanelCollapsed)}
+        savedArticles={savedArticles}
+        onUnsave={(id) => {
+          unsaveArticle(id)
+          showToast('Removed from saved')
+        }}
+      />
 
-            {/* Refresh Button */}
-            <div className="flex flex-col items-end gap-1">
-              <button
-                onClick={handleRefresh}
-                disabled={isRefreshing || !refreshStatus?.canRefresh}
-                className={`
-                  flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-                  transition-all duration-200
-                  ${isRefreshing
-                    ? 'bg-zinc-700 text-zinc-400 cursor-wait'
-                    : refreshStatus?.canRefresh
-                      ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-zinc-100'
-                      : 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed'
-                  }
-                `}
-                title={
-                  refreshStatus?.canRefresh
-                    ? 'Fetch latest articles'
-                    : refreshStatus?.nextRefreshAt
-                      ? `Next refresh available at ${new Date(refreshStatus.nextRefreshAt).toLocaleTimeString()}`
-                      : 'Refresh unavailable'
-                }
-              >
-                <svg
-                  className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+      {/* Main content wrapper - shifts right when panel is expanded */}
+      <div
+        className={`
+          transition-all duration-300 ease-in-out
+          ${isPanelCollapsed ? 'sm:ml-12' : 'sm:ml-80'}
+        `}
+      >
+        {/* Header */}
+        <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
+          <div className="mx-auto max-w-4xl px-6 py-6">
+            <div className="flex items-center justify-between gap-4">
+              {/* Left side: Mobile hamburger + Title */}
+              <div className="flex items-center gap-3">
+                {/* Mobile hamburger menu - only visible on mobile */}
+                <button
+                  onClick={() => setIsPanelCollapsed(false)}
+                  className="sm:hidden p-2 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+                  aria-label="Open saved articles panel"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                {isRefreshing ? 'Refreshing...' : 'Refresh'}
-              </button>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
 
-              {refreshMessage && (
-                <p className={`text-xs ${refreshMessage.includes('failed') || refreshMessage.includes('Already') ? 'text-amber-400' : 'text-green-400'}`}>
-                  {refreshMessage}
-                </p>
-              )}
+                <div>
+                  <h1 className="text-2xl font-bold text-zinc-100">
+                    dev.pulse
+                  </h1>
+                  <p className="text-sm text-zinc-400 mt-1 hidden sm:block">
+                    {oldestDate
+                      ? `${articles.length} AI Updates (through ${new Date(oldestDate).toLocaleDateString()})`
+                      : totalArticles > 0
+                        ? `${articles.length} of ${totalArticles} AI Updates (Last 3 Days)`
+                        : `Today's Top ${articles.length} AI Updates for Developers`
+                    }
+                  </p>
+                </div>
+              </div>
 
-              {!refreshStatus?.canRefresh && refreshStatus?.nextRefreshAt && (
-                <p className="text-xs text-zinc-500">
-                  Next refresh: {new Date(refreshStatus.nextRefreshAt).toLocaleTimeString()}
-                </p>
-              )}
+              {/* Right side: Refresh button */}
+              <div className="flex items-center gap-2">
+                {/* Refresh Button */}
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  onClick={handleRefresh}
+                  disabled={isRefreshing || !refreshStatus?.canRefresh}
+                  className={`
+                    flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+                    transition-all duration-200
+                    ${isRefreshing
+                      ? 'bg-zinc-700 text-zinc-400 cursor-wait'
+                      : refreshStatus?.canRefresh
+                        ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-zinc-100'
+                        : 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed'
+                    }
+                  `}
+                  title={
+                    refreshStatus?.canRefresh
+                      ? 'Fetch latest articles'
+                      : refreshStatus?.nextRefreshAt
+                        ? `Next refresh available at ${new Date(refreshStatus.nextRefreshAt).toLocaleTimeString()}`
+                        : 'Refresh unavailable'
+                  }
+                >
+                  <svg
+                    className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
+
+                {refreshMessage && (
+                  <p className={`text-xs hidden sm:block ${refreshMessage.includes('failed') || refreshMessage.includes('Already') ? 'text-amber-400' : 'text-green-400'}`}>
+                    {refreshMessage}
+                  </p>
+                )}
+
+                {!refreshStatus?.canRefresh && refreshStatus?.nextRefreshAt && (
+                  <p className="text-xs text-zinc-500 hidden sm:block">
+                    Next refresh: {new Date(refreshStatus.nextRefreshAt).toLocaleTimeString()}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -497,7 +627,13 @@ export default function Home() {
                   {articles
                     .filter(a => a.section === 'critical')
                     .map((article, index) => (
-                      <DevArticleCard key={article.id} article={article} index={index} />
+                      <DevArticleCard
+                        key={article.id}
+                        article={article}
+                        index={index}
+                        isSaved={isSaved(article.id)}
+                        onToggleSave={() => handleToggleSave(article)}
+                      />
                     ))}
                 </div>
               </section>
@@ -519,7 +655,13 @@ export default function Home() {
                   {articles
                     .filter(a => a.section === 'noteworthy' || !a.section)
                     .map((article, index) => (
-                      <DevArticleCard key={article.id} article={article} index={index} />
+                      <DevArticleCard
+                        key={article.id}
+                        article={article}
+                        index={index}
+                        isSaved={isSaved(article.id)}
+                        onToggleSave={() => handleToggleSave(article)}
+                      />
                     ))}
                 </div>
               </section>
@@ -541,7 +683,41 @@ export default function Home() {
                   {articles
                     .filter(a => a.section === 'spotlight')
                     .map((article, index) => (
-                      <DevArticleCard key={article.id} article={article} index={index} />
+                      <DevArticleCard
+                        key={article.id}
+                        article={article}
+                        index={index}
+                        isSaved={isSaved(article.id)}
+                        onToggleSave={() => handleToggleSave(article)}
+                      />
+                    ))}
+                </div>
+              </section>
+            )}
+
+            {/* Earlier Articles Section (Historical Data) */}
+            {articles.filter(a => a.section === 'historical').length > 0 && (
+              <section className="mt-8">
+                <div className="mb-4 pb-2 border-b border-amber-900/30">
+                  <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                    <span>📚</span>
+                    <span>Earlier Articles</span>
+                  </h2>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Older articles sorted by importance
+                  </p>
+                </div>
+                <div className="space-y-6">
+                  {articles
+                    .filter(a => a.section === 'historical')
+                    .map((article, index) => (
+                      <DevArticleCard
+                        key={article.id}
+                        article={article}
+                        index={index}
+                        isSaved={isSaved(article.id)}
+                        onToggleSave={() => handleToggleSave(article)}
+                      />
                     ))}
                 </div>
               </section>
@@ -552,20 +728,35 @@ export default function Home() {
 
             {/* Loading more indicator */}
             {loadingMore && (
-              <div className="flex justify-center items-center py-8">
+              <div className="flex flex-col items-center justify-center py-8">
                 <svg className="animate-spin h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span className="ml-3 text-zinc-400">Loading more articles...</span>
+                <span className="mt-3 text-zinc-400">
+                  {inHistoricalMode ? 'Loading from archive...' : 'Loading more articles...'}
+                </span>
+                {inHistoricalMode && (
+                  <span className="text-xs text-zinc-500 mt-1">
+                    Searching historical data
+                  </span>
+                )}
               </div>
             )}
 
             {/* End of feed message */}
             {!hasMore && articles.length > 0 && !loadingMore && (
               <div className="text-center py-8 text-zinc-500 border-t border-zinc-800 mt-8">
-                <p className="text-sm">That's all for the last 3 days!</p>
-                <p className="text-xs mt-2">Showing {articles.length} of {totalArticles} articles</p>
+                <p className="text-sm">
+                  {inHistoricalMode
+                    ? "You've reached the end of our archive!"
+                    : "That's all for the last 3 days!"
+                  }
+                </p>
+                <p className="text-xs mt-2">
+                  Showing {articles.length} articles
+                  {oldestDate && ` (oldest from ${new Date(oldestDate).toLocaleDateString()})`}
+                </p>
               </div>
             )}
 
@@ -576,7 +767,12 @@ export default function Home() {
                 <button
                   onClick={() => {
                     setError(null)
-                    fetchArticles(offset + 10, true)
+                    if (inHistoricalMode) {
+                      // historicalOffset already tracks NEXT offset to fetch
+                      fetchArticles(historicalOffset, true, true)
+                    } else {
+                      fetchArticles(offset + 10, true, false)
+                    }
                   }}
                   className="mt-3 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-sm"
                 >
@@ -588,12 +784,22 @@ export default function Home() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-800 mt-16">
-        <div className="mx-auto max-w-4xl px-6 py-8 text-center text-zinc-600 text-sm">
-          <p>Built with Next.js, Tailwind, and Claude Code</p>
-        </div>
-      </footer>
+        {/* Footer */}
+        <footer className="border-t border-zinc-800 mt-16">
+          <div className="mx-auto max-w-4xl px-6 py-8 text-center text-zinc-600 text-sm">
+            <p>Built with Next.js, Tailwind, and Claude Code</p>
+          </div>
+        </footer>
+      </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={hideToast}
+        />
+      )}
     </div>
   )
 }

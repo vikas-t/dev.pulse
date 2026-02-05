@@ -1,8 +1,22 @@
 import { test, expect } from '@playwright/test'
-import { emptyArticlesResponse, errorArticlesResponse } from '../fixtures/mock-data'
+import { emptyArticlesResponse, errorArticlesResponse, refreshStatusCanRefresh } from '../fixtures/mock-data'
+
+// Helper to mock refresh API
+const mockRefreshApi = async (page: any) => {
+  await page.route('**/api/refresh', async (route: any) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(refreshStatusCanRefresh),
+    })
+  })
+}
 
 test.describe('Loading State', () => {
   test('shows loading skeleton initially', async ({ page }) => {
+    // Mock refresh API
+    await mockRefreshApi(page)
+
     // Delay the API response to see loading state
     await page.route('**/api/articles/today*', async route => {
       await new Promise(resolve => setTimeout(resolve, 500))
@@ -25,6 +39,9 @@ test.describe('Loading State', () => {
   })
 
   test('loading skeleton disappears after load', async ({ page }) => {
+    // Mock refresh API
+    await mockRefreshApi(page)
+
     await page.route('**/api/articles/today*', async route => {
       await route.fulfill({
         status: 200,
@@ -48,6 +65,9 @@ test.describe('Empty API Response Fallback', () => {
   // This tests that behavior - the "empty state" UI is not reachable in practice
 
   test.beforeEach(async ({ page }) => {
+    // Mock refresh API
+    await mockRefreshApi(page)
+
     await page.route('**/api/articles/today*', async route => {
       await route.fulfill({
         status: 200,
@@ -83,6 +103,9 @@ test.describe('Empty API Response Fallback', () => {
 
 test.describe('Error State', () => {
   test('falls back to mock data on API error', async ({ page }) => {
+    // Mock refresh API
+    await mockRefreshApi(page)
+
     // Return error response
     await page.route('**/api/articles/today*', async route => {
       await route.fulfill({
@@ -104,6 +127,9 @@ test.describe('Error State', () => {
   })
 
   test('falls back to mock data on network failure', async ({ page }) => {
+    // Mock refresh API
+    await mockRefreshApi(page)
+
     // Abort the request to simulate network failure
     await page.route('**/api/articles/today*', async route => {
       await route.abort('failed')
@@ -117,6 +143,9 @@ test.describe('Error State', () => {
   })
 
   test('header still displays with fallback data', async ({ page }) => {
+    // Mock refresh API
+    await mockRefreshApi(page)
+
     await page.route('**/api/articles/today*', async route => {
       await route.fulfill({
         status: 500,
@@ -134,6 +163,9 @@ test.describe('Error State', () => {
 
 test.describe('Section Visibility', () => {
   test('hides Critical section when no critical articles', async ({ page }) => {
+    // Mock refresh API
+    await mockRefreshApi(page)
+
     await page.route('**/api/articles/today*', async route => {
       await route.fulfill({
         status: 200,
@@ -173,6 +205,9 @@ test.describe('Section Visibility', () => {
   })
 
   test('hides Spotlight section when no trending articles', async ({ page }) => {
+    // Mock refresh API
+    await mockRefreshApi(page)
+
     await page.route('**/api/articles/today*', async route => {
       await route.fulfill({
         status: 200,

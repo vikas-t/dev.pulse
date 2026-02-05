@@ -22,7 +22,7 @@ export interface MockArticle {
   author?: string | null
   publishedAt: string
   hnDiscussionUrl?: string | null
-  section?: 'critical' | 'noteworthy' | 'spotlight'
+  section?: 'critical' | 'noteworthy' | 'spotlight' | 'historical'
 }
 
 // Critical article (score >= 95)
@@ -321,4 +321,264 @@ export const emptyPageResponse = {
     languages: [],
     frameworks: [],
   },
+}
+
+// Historical articles (older than 3 days)
+export const historicalArticle1: MockArticle = {
+  id: 'historical-1',
+  title: 'TensorFlow 2.14: New XLA Compiler Optimizations',
+  url: 'https://github.com/tensorflow/tensorflow/releases/tag/v2.14.0',
+  source: 'github',
+  category: 'launch',
+  importanceLabel: 'MAJOR',
+  importanceScore: 82,
+  tags: ['🚀'],
+  summary: [
+    'Major XLA compiler improvements for GPU workloads',
+    '25% faster training on TPU v4',
+    'New keras.Model.fit() optimizations',
+  ],
+  insight: 'Worth upgrading if you have heavy GPU training workloads.',
+  languages: ['python'],
+  frameworks: ['tensorflow', 'keras'],
+  topics: ['ml', 'training'],
+  githubRepo: 'tensorflow/tensorflow',
+  githubStars: 180000,
+  githubLanguage: 'Python',
+  publishedAt: '2024-01-01T10:00:00Z',
+  section: 'historical',
+}
+
+export const historicalArticle2: MockArticle = {
+  id: 'historical-2',
+  title: 'Hugging Face Introduces Model Memory Mapping',
+  url: 'https://huggingface.co/blog/memory-mapping',
+  source: 'blog',
+  category: 'performance',
+  importanceLabel: 'NOTABLE',
+  importanceScore: 68,
+  tags: ['⚡'],
+  summary: [
+    'Load 70B models with less RAM using memory mapping',
+    'Works with transformers 4.35+',
+    'Reduces peak memory by 50%',
+  ],
+  insight: 'Game-changer for running large models on consumer hardware.',
+  languages: ['python'],
+  frameworks: ['transformers'],
+  topics: ['llm', 'optimization'],
+  publishedAt: '2023-12-28T14:00:00Z',
+  section: 'historical',
+}
+
+// Last page of recent data (triggers transition to historical)
+export const lastRecentPageResponse = {
+  success: true,
+  articles: [noteworthyArticle1],
+  count: 1,
+  total: 3,
+  hasMore: false,
+  cached: true,
+  source: 'cache',
+  oldestDate: '2024-01-09T14:00:00Z',
+  distribution: {
+    critical: 1,
+    major: 1,
+    notable: 1,
+    info: 0,
+    trending: 0,
+  },
+  filters: {
+    languages: [],
+    frameworks: [],
+  },
+}
+
+// First page of historical data
+export const firstHistoricalPageResponse = {
+  success: true,
+  articles: [historicalArticle1, historicalArticle2],
+  count: 2,
+  total: 10,
+  hasMore: true,
+  cached: false,
+  source: 'database',
+  oldestDate: '2023-12-28T14:00:00Z',
+  distribution: {
+    critical: 0,
+    major: 1,
+    notable: 1,
+    info: 0,
+    trending: 0,
+  },
+  filters: {
+    languages: [],
+    frameworks: [],
+  },
+}
+
+// Last page of historical data
+export const lastHistoricalPageResponse = {
+  success: true,
+  articles: [historicalArticle2],
+  count: 1,
+  total: 10,
+  hasMore: false,
+  cached: false,
+  source: 'database',
+  oldestDate: '2023-12-28T14:00:00Z',
+  distribution: {
+    critical: 0,
+    major: 0,
+    notable: 1,
+    info: 0,
+    trending: 0,
+  },
+  filters: {
+    languages: [],
+    frameworks: [],
+  },
+}
+
+// arXiv articles (research papers)
+export const arxivArticle1: MockArticle = {
+  id: 'arxiv-1',
+  title: 'Efficient Fine-Tuning of Large Language Models with LoRA 2.0',
+  url: 'https://arxiv.org/abs/2401.23456',
+  source: 'arxiv',
+  category: 'research',
+  importanceLabel: 'NOTABLE',
+  importanceScore: 68,
+  tags: ['📰'],
+  summary: [
+    'Improved low-rank adaptation method for LLM fine-tuning',
+    'Reduces memory requirements by 40%',
+    'Compatible with HuggingFace Transformers',
+  ],
+  insight: 'Useful for developers fine-tuning models on limited hardware.',
+  codeExample: `from peft import LoraConfig, get_peft_model
+
+config = LoraConfig(r=16, lora_alpha=32)
+model = get_peft_model(base_model, config)`,
+  codeLanguage: 'python',
+  installCommand: 'pip install peft transformers',
+  languages: ['python'],
+  frameworks: ['transformers', 'peft'],
+  topics: ['llm', 'fine-tuning'],
+  author: 'Hu et al.',
+  publishedAt: '2024-01-09T12:00:00Z',
+  section: 'noteworthy',
+}
+
+export const arxivArticle2: MockArticle = {
+  id: 'arxiv-2',
+  title: 'Building Production RAG Systems: Lessons from Industry',
+  url: 'https://arxiv.org/abs/2401.34567',
+  source: 'arxiv',
+  category: 'research',
+  importanceLabel: 'NOTABLE',
+  importanceScore: 65,
+  tags: ['📰'],
+  summary: [
+    'Practical lessons for deploying RAG at scale',
+    'Chunking strategies and embedding selection',
+    'Hybrid search approaches with examples',
+  ],
+  insight: 'Essential reading for building production RAG pipelines.',
+  languages: ['python'],
+  frameworks: ['langchain', 'llamaindex'],
+  topics: ['rag', 'llm'],
+  author: 'Chen et al.',
+  publishedAt: '2024-01-08T09:00:00Z',
+  section: 'noteworthy',
+}
+
+export const arxivArticle3: MockArticle = {
+  id: 'arxiv-3',
+  title: 'Attention Mechanisms Revisited: A Comprehensive Survey',
+  url: 'https://arxiv.org/abs/2401.45678',
+  source: 'arxiv',
+  category: 'research',
+  importanceLabel: 'INFO',
+  importanceScore: 52,
+  tags: ['📰'],
+  summary: [
+    'Survey of attention mechanisms in modern architectures',
+    'Comparison of multi-head, grouped-query, and flash attention',
+    'Performance benchmarks across model sizes',
+  ],
+  insight: 'Good reference for understanding attention variants in LLMs.',
+  languages: ['python'],
+  frameworks: ['pytorch', 'transformers'],
+  topics: ['llm', 'architecture'],
+  author: 'Wang et al.',
+  publishedAt: '2024-01-07T15:00:00Z',
+  section: 'noteworthy',
+}
+
+// arXiv response with papers
+export const arxivArticlesResponse = {
+  success: true,
+  articles: [arxivArticle1, arxivArticle2, arxivArticle3],
+  count: 3,
+  total: 3,
+  hasMore: false,
+  cached: false,
+  distribution: {
+    critical: 0,
+    major: 0,
+    notable: 2,
+    info: 1,
+    trending: 0,
+  },
+  filters: {
+    languages: [],
+    frameworks: [],
+  },
+}
+
+// Mixed response with arXiv and other sources
+export const mixedSourcesResponse = {
+  success: true,
+  articles: [criticalArticle, arxivArticle1, noteworthyArticle1, arxivArticle2],
+  count: 4,
+  total: 4,
+  hasMore: false,
+  cached: false,
+  distribution: {
+    critical: 1,
+    major: 1,
+    notable: 2,
+    info: 0,
+    trending: 0,
+  },
+  filters: {
+    languages: [],
+    frameworks: [],
+  },
+}
+
+// arXiv article that also appears on HN (for deduplication testing)
+export const arxivOnHnArticle: MockArticle = {
+  id: 'arxiv-hn-1',
+  title: 'Efficient Fine-Tuning of Large Language Models with LoRA 2.0',
+  url: 'https://arxiv.org/abs/2401.23456', // Same URL as arxivArticle1
+  source: 'hn',
+  category: 'research',
+  importanceLabel: 'NOTABLE',
+  importanceScore: 72,
+  tags: ['📰', '💬'],
+  summary: [
+    'Improved low-rank adaptation method for LLM fine-tuning',
+    'Reduces memory requirements by 40%',
+    'Compatible with HuggingFace Transformers',
+  ],
+  insight: 'Useful for developers fine-tuning models on limited hardware.',
+  languages: ['python'],
+  frameworks: ['transformers', 'peft'],
+  topics: ['llm', 'fine-tuning'],
+  author: 'Hu et al.',
+  publishedAt: '2024-01-09T12:00:00Z',
+  hnDiscussionUrl: 'https://news.ycombinator.com/item?id=12345678',
+  section: 'noteworthy',
 }

@@ -121,21 +121,40 @@ test.describe('Infinite Scroll Pagination', () => {
   })
 
   test('shows end of feed message when no more articles', async ({ page }) => {
-    // Mock last page response
+    // Mock last page response (recent data exhausted)
     await page.route('**/api/articles/today?limit=10&offset=0', async route => {
+      const url = route.request().url()
+      // Check if this is a historical data request
+      if (url.includes('older=true')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, articles: [], hasMore: false }),
+        })
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(lastPageResponse),
+        })
+      }
+    })
+
+    // Also mock historical data endpoint (no older articles)
+    await page.route('**/api/articles/today?limit=10&offset=0&older=true', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(lastPageResponse),
+        body: JSON.stringify({ success: true, articles: [], hasMore: false }),
       })
     })
 
     await page.goto('/')
     await page.waitForLoadState('networkidle')
 
-    // Should show end message (hasMore is false)
-    await expect(page.locator('text=That\'s all for the last 3 days!')).toBeVisible()
-    await expect(page.locator('text=Showing 1 of 25 articles')).toBeVisible()
+    // After recent data exhausted + historical returns empty, should show archive end message
+    await expect(page.locator('text=You\'ve reached the end of our archive!')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('text=Showing 1 articles')).toBeVisible()
   })
 
   test('does not load more when already at end', async ({ page }) => {
@@ -143,16 +162,31 @@ test.describe('Infinite Scroll Pagination', () => {
 
     await page.route('**/api/articles/today**', async route => {
       requestCount++
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(lastPageResponse),
-      })
+      const url = route.request().url()
+      if (url.includes('older=true')) {
+        // Historical request returns empty - truly at end
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, articles: [], hasMore: false }),
+        })
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(lastPageResponse),
+        })
+      }
     })
 
     await page.goto('/')
     await page.waitForLoadState('networkidle')
-    expect(requestCount).toBe(1)
+
+    // Wait for historical fetch to also complete
+    await page.waitForTimeout(500)
+    const countAfterLoad = requestCount
+    // Initial load (1) + automatic historical fetch (1) = 2
+    expect(countAfterLoad).toBe(2)
 
     // Try to load more multiple times
     await page.evaluate(() => (window as any).__loadMore())
@@ -160,8 +194,8 @@ test.describe('Infinite Scroll Pagination', () => {
     await page.evaluate(() => (window as any).__loadMore())
     await page.waitForTimeout(300)
 
-    // Should still only have made 1 request (hasMore is false)
-    expect(requestCount).toBe(1)
+    // Should not make additional requests (historical hasMore is false)
+    expect(requestCount).toBe(countAfterLoad)
   })
 
   test('handles empty page responses gracefully', async ({ page }) => {

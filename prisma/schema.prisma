@@ -104,6 +104,16 @@ model UserPreference {
   @@map("user_preferences")
 }
 
+// System settings (rate limiting, global config)
+model SystemSettings {
+  id            String    @id @default("system")
+  lastRefreshAt DateTime? @map("last_refresh_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
 // User interactions (analytics)
 model ArticleView {
   id         String   @id @default(uuid())

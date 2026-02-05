@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { SavedArticlesProvider } from "@/lib/context/SavedArticlesContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -27,7 +28,9 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
       >
-        {children}
+        <SavedArticlesProvider>
+          {children}
+        </SavedArticlesProvider>
       </body>
     </html>
   );

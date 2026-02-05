@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockArticlesResponse, criticalArticle } from '../fixtures/mock-data'
+import { mockArticlesResponse, criticalArticle, refreshStatusCanRefresh } from '../fixtures/mock-data'
 
 test.describe('Article Card', () => {
   test.beforeEach(async ({ page }) => {
@@ -10,6 +10,16 @@ test.describe('Article Card', () => {
         body: JSON.stringify(mockArticlesResponse),
       })
     })
+
+    // Mock refresh status API
+    await page.route('**/api/refresh', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(refreshStatusCanRefresh),
+      })
+    })
+
     await page.goto('/')
   })
 
