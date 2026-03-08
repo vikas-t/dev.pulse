@@ -95,14 +95,6 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
           }`}>
             {article.importanceLabel}
           </span>
-          {(article.validationLabel === 'UNVERIFIED' || article.validationLabel === 'SUSPICIOUS') && (
-            <span
-              className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
-              title={article.validationLabel === 'SUSPICIOUS' ? 'Suspicious — claims could not be verified' : 'Unverified — insufficient evidence'}
-            >
-              ⚠️ {article.validationLabel === 'SUSPICIOUS' ? 'Suspicious' : 'Unverified'}
-            </span>
-          )}
           {index !== undefined && (
             <span className="text-xs text-zinc-600 font-mono">{index + 1}</span>
           )}

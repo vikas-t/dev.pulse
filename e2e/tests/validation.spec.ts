@@ -30,89 +30,75 @@ test.describe('Validation — VERIFIED article', () => {
     await page.goto('/')
   })
 
-  test('does not show warning badge for verified article', async ({ page }) => {
-    const card = page.locator('article').first()
-    await expect(card).not.toContainText('Unverified')
-    await expect(card).not.toContainText('Suspicious')
-    await expect(card).not.toContainText('⚠️')
-  })
-
-  test('displays article normally', async ({ page }) => {
+  test('displays verified article normally', async ({ page }) => {
     const card = page.locator('article').first()
     await expect(card).toContainText(verifiedArticle.title)
     await expect(card).toContainText('MAJOR')
   })
-})
 
-test.describe('Validation — UNVERIFIED article', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.route('**/api/articles/today*', async route => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeResponse([unverifiedArticle])) })
-    })
-    await page.route('**/api/refresh', async route => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(refreshStatusCanRefresh) })
-    })
-    await page.goto('/')
-  })
-
-  test('shows Unverified warning badge', async ({ page }) => {
+  test('does not show any warning badge for verified article', async ({ page }) => {
     const card = page.locator('article').first()
-    await expect(card).toContainText('⚠️')
-    await expect(card).toContainText('Unverified')
-  })
-
-  test('does not show Suspicious badge', async ({ page }) => {
-    const card = page.locator('article').first()
+    await expect(card).not.toContainText('Unverified')
     await expect(card).not.toContainText('Suspicious')
   })
-
-  test('still displays article title and content', async ({ page }) => {
-    const card = page.locator('article').first()
-    await expect(card).toContainText(unverifiedArticle.title)
-  })
 })
 
-test.describe('Validation — SUSPICIOUS article', () => {
-  test.beforeEach(async ({ page }) => {
+test.describe('Validation — UNVERIFIED article is excluded from feed', () => {
+  test('unverified article is not shown — pipeline drops it before serving', async ({ page }) => {
+    // Pipeline drops UNVERIFIED — API returns empty feed
+    const emptyResponse = {
+      success: true,
+      articles: [],
+      count: 0,
+      total: 0,
+      hasMore: false,
+      cached: false,
+      distribution: { critical: 0, major: 0, notable: 0, info: 0, trending: 0 },
+      filters: { languages: [], frameworks: [] },
+    }
+
     await page.route('**/api/articles/today*', async route => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeResponse([suspiciousArticle])) })
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyResponse) })
     })
     await page.route('**/api/refresh', async route => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(refreshStatusCanRefresh) })
     })
+
     await page.goto('/')
-  })
-
-  test('shows Suspicious warning badge', async ({ page }) => {
-    const card = page.locator('article').first()
-    await expect(card).toContainText('⚠️')
-    await expect(card).toContainText('Suspicious')
-  })
-
-  test('does not show Unverified badge for suspicious article', async ({ page }) => {
-    const card = page.locator('article').first()
-    // Check the badge element specifically — the word "Unverified" may appear in summary bullets
-    await expect(card.locator('span', { hasText: '⚠️ Unverified' })).toHaveCount(0)
-  })
-
-  test('still displays article title', async ({ page }) => {
-    const card = page.locator('article').first()
-    await expect(card).toContainText(suspiciousArticle.title)
+    await expect(page.locator('body')).not.toContainText(unverifiedArticle.title)
   })
 })
 
-test.describe('Validation — mixed feed', () => {
-  test('shows warning only on unverified/suspicious articles in mixed feed', async ({ page }) => {
-    const response = {
+test.describe('Validation — SUSPICIOUS article is excluded from feed', () => {
+  test('suspicious article is not shown — pipeline drops it before serving', async ({ page }) => {
+    // Pipeline drops SUSPICIOUS — API returns empty feed
+    const emptyResponse = {
       success: true,
-      articles: [verifiedArticle, unverifiedArticle, suspiciousArticle],
-      count: 3,
-      total: 3,
+      articles: [],
+      count: 0,
+      total: 0,
       hasMore: false,
       cached: false,
-      distribution: { critical: 0, major: 1, notable: 2, info: 0, trending: 0 },
+      distribution: { critical: 0, major: 0, notable: 0, info: 0, trending: 0 },
       filters: { languages: [], frameworks: [] },
     }
+
+    await page.route('**/api/articles/today*', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyResponse) })
+    })
+    await page.route('**/api/refresh', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(refreshStatusCanRefresh) })
+    })
+
+    await page.goto('/')
+    await expect(page.locator('body')).not.toContainText(suspiciousArticle.title)
+  })
+})
+
+test.describe('Validation — mixed feed only shows verified articles', () => {
+  test('only VERIFIED and LIKELY_VALID articles appear in feed', async ({ page }) => {
+    // Pipeline drops unverified/suspicious — only verified makes it through
+    const response = makeResponse([verifiedArticle])
 
     await page.route('**/api/articles/today*', async route => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(response) })
@@ -124,16 +110,9 @@ test.describe('Validation — mixed feed', () => {
     await page.goto('/')
 
     const cards = page.locator('article')
-    await expect(cards).toHaveCount(3)
-
-    // First card (verified) — no warning
-    await expect(cards.nth(0)).not.toContainText('Unverified')
-    await expect(cards.nth(0)).not.toContainText('Suspicious')
-
-    // Second card (unverified) — shows Unverified
-    await expect(cards.nth(1)).toContainText('Unverified')
-
-    // Third card (suspicious) — shows Suspicious
-    await expect(cards.nth(2)).toContainText('Suspicious')
+    await expect(cards).toHaveCount(1)
+    await expect(cards.first()).toContainText(verifiedArticle.title)
+    await expect(page.locator('body')).not.toContainText(unverifiedArticle.title)
+    await expect(page.locator('body')).not.toContainText(suspiciousArticle.title)
   })
 })

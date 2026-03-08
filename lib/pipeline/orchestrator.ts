@@ -91,10 +91,19 @@ export async function runPipeline(): Promise<PipelineResult> {
     console.log('[Pipeline] Step 3.5: AI validation...')
     const validations = await validateArticles(canonical, scorings, duplicates)
 
-    // Apply validation results — cap scores for low-credibility articles
+    // Drop UNVERIFIED and SUSPICIOUS articles — not reliable enough for the feed
+    const droppedUrls = new Set<string>()
+    for (const [url, validation] of validations) {
+      if (validation.validationLabel === 'UNVERIFIED' || validation.validationLabel === 'SUSPICIOUS') {
+        console.log(`[Pipeline] Dropping ${validation.validationLabel} article: ${url}`)
+        droppedUrls.add(url)
+      }
+    }
+
+    // Apply validation score adjustments for articles that passed
     for (const [url, validation] of validations) {
       const scoring = scorings.get(url)
-      if (scoring) {
+      if (scoring && !droppedUrls.has(url)) {
         scorings.set(url, applyValidationToScoring(scoring, validation))
       }
     }
@@ -107,7 +116,7 @@ export async function runPipeline(): Promise<PipelineResult> {
     console.log('[Pipeline] Step 5: Tech stack tagging...')
     const enrichedArticles = canonical.map(article => {
       const scoring = scorings.get(article.url)
-      if (!scoring) return null
+      if (!scoring || droppedUrls.has(article.url)) return null
 
       const summary = summaries.get(article.url)
       const validation = validations.get(article.url)
