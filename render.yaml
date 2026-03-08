@@ -3,7 +3,7 @@ services:
     name: dev-pulse
     runtime: node
     plan: free
-    buildCommand: npm install && npx prisma generate && npm run build
+    buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
