@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockArticlesResponse, criticalArticle, refreshStatusCanRefresh } from '../fixtures/mock-data'
+import { mockArticlesResponse, criticalArticle, noCodeArticle, refreshStatusCanRefresh } from '../fixtures/mock-data'
 
 test.describe('Article Card', () => {
   test.beforeEach(async ({ page }) => {
@@ -151,5 +151,46 @@ test.describe('Article Card', () => {
     const githubLink = firstCard.locator('a', { hasText: 'GitHub' })
     await expect(githubLink).toBeVisible()
     await expect(githubLink).toHaveAttribute('href', `https://github.com/${criticalArticle.githubRepo}`)
+  })
+})
+
+test.describe('Article Card - No Code Content', () => {
+  test.beforeEach(async ({ page }) => {
+    const response = {
+      success: true,
+      articles: [noCodeArticle],
+      count: 1,
+      total: 1,
+      hasMore: false,
+      cached: false,
+      distribution: { critical: 0, major: 0, notable: 1, info: 0, trending: 0 },
+      filters: { languages: [], frameworks: [] },
+    }
+
+    await page.route('**/api/articles/today*', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(response) })
+    })
+    await page.route('**/api/refresh', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(refreshStatusCanRefresh) })
+    })
+
+    await page.goto('/')
+  })
+
+  test('does not show install command when null', async ({ page }) => {
+    const card = page.locator('article').first()
+
+    // Should not contain any pip install or npm install command
+    await expect(card).not.toContainText('pip install')
+    await expect(card).not.toContainText('npm install')
+  })
+
+  test('does not show Quick Start section when no code available', async ({ page }) => {
+    const card = page.locator('article').first()
+
+    await card.locator('button', { hasText: 'Show more' }).click()
+
+    // No code block should be rendered
+    await expect(card).not.toContainText('Quick Start')
   })
 })

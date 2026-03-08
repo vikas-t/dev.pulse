@@ -53,11 +53,19 @@ model Article {
   humanReviewed       Boolean  @default(false) @map("human_reviewed")
   affectsProduction   Boolean  @default(false) @map("affects_production")
 
+  // Validation
+  validationScore   Int?    @map("validation_score")   // 0-100
+  validationLabel   String? @map("validation_label")   // 'VERIFIED' | 'LIKELY_VALID' | 'UNVERIFIED' | 'SUSPICIOUS'
+  validationReason  String? @map("validation_reason")
+
   // Engagement
   sourceScore       Int?    @map("source_score")
   commentCount      Int?    @map("comment_count")
   hnDiscussionUrl   String? @map("hn_discussion_url")
   redditDiscussionUrl String? @map("reddit_discussion_url")
+
+  // Pipeline versioning
+  pipelineVersion String @default("v1") @map("pipeline_version")
 
   // System
   createdAt DateTime @default(now()) @map("created_at")

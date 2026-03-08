@@ -22,6 +22,9 @@ export interface MockArticle {
   author?: string | null
   publishedAt: string
   hnDiscussionUrl?: string | null
+  validationLabel?: 'VERIFIED' | 'LIKELY_VALID' | 'UNVERIFIED' | 'SUSPICIOUS' | null
+  validationScore?: number | null
+  validationReason?: string | null
   section?: 'critical' | 'noteworthy' | 'spotlight' | 'historical'
 }
 
@@ -558,6 +561,58 @@ export const mixedSourcesResponse = {
   },
 }
 
+// HN article with zero engagement (should be filtered by pipeline)
+export const zeroEngagementHnArticle: MockArticle = {
+  id: 'hn-zero-engagement',
+  title: 'LangChain 1.2.0 Improves LLM Output Evaluation',
+  url: 'https://blog.langchain.dev/langchain-1.2.0',
+  source: 'hn',
+  category: 'library',
+  importanceLabel: 'MAJOR',
+  importanceScore: 80,
+  tags: ['🚀'],
+  summary: [
+    'Updated LangChain library enhances LLM output evaluation',
+    'Version 1.2.0 introduces evaluate_output function',
+  ],
+  insight: 'Useful for assessing code accuracy in LLM workflows.',
+  codeExample: `from langchain.llms import evaluate_output\nresult = evaluate_output(code_output)`,
+  codeLanguage: 'python',
+  installCommand: 'pip install langchain==1.2.0',
+  languages: ['python'],
+  frameworks: ['langchain'],
+  topics: ['llm'],
+  publishedAt: new Date().toISOString(),
+  hnDiscussionUrl: 'https://news.ycombinator.com/item?id=99999999',
+  section: 'noteworthy',
+}
+
+// Article with no code in source — installCommand and codeExample should be null
+export const noCodeArticle: MockArticle = {
+  id: 'no-code-1',
+  title: 'OpenAI Announces New Partnership with Enterprise Customers',
+  url: 'https://openai.com/blog/enterprise-partnership',
+  source: 'hn',
+  category: 'industry',
+  importanceLabel: 'NOTABLE',
+  importanceScore: 65,
+  tags: ['📰'],
+  summary: [
+    'OpenAI expands enterprise tier with new SLA commitments',
+    'Priority access to GPT-4o for paying customers',
+  ],
+  insight: 'Relevant for teams evaluating OpenAI for production use.',
+  codeExample: null,
+  codeLanguage: null,
+  installCommand: null,
+  languages: [],
+  frameworks: ['openai'],
+  topics: ['llm', 'industry'],
+  publishedAt: new Date().toISOString(),
+  hnDiscussionUrl: 'https://news.ycombinator.com/item?id=88888888',
+  section: 'noteworthy',
+}
+
 // arXiv article that also appears on HN (for deduplication testing)
 export const arxivOnHnArticle: MockArticle = {
   id: 'arxiv-hn-1',
@@ -580,5 +635,72 @@ export const arxivOnHnArticle: MockArticle = {
   author: 'Hu et al.',
   publishedAt: '2024-01-09T12:00:00Z',
   hnDiscussionUrl: 'https://news.ycombinator.com/item?id=12345678',
+  section: 'noteworthy',
+}
+
+// Validation mock articles
+
+export const verifiedArticle: MockArticle = {
+  id: 'verified-1',
+  title: 'PyTorch 2.3 Released with CUDA 12.1 Support',
+  url: 'https://github.com/pytorch/pytorch/releases/tag/v2.3.0',
+  source: 'github',
+  category: 'launch',
+  importanceLabel: 'MAJOR',
+  importanceScore: 85,
+  tags: ['🚀'],
+  summary: ['CUDA 12.1 support added', 'torch.compile improvements', 'New distributed training APIs'],
+  insight: 'Upgrade if you are on CUDA 12.1+ hardware.',
+  languages: ['python'],
+  frameworks: ['pytorch'],
+  topics: ['ml', 'training'],
+  githubRepo: 'pytorch/pytorch',
+  githubStars: 78000,
+  publishedAt: new Date().toISOString(),
+  validationLabel: 'VERIFIED',
+  validationScore: 95,
+  validationReason: 'Official GitHub release from trusted pytorch/pytorch repo',
+  section: 'noteworthy',
+}
+
+export const unverifiedArticle: MockArticle = {
+  id: 'unverified-1',
+  title: 'New HTTP 406 Standard Revolutionizes API Error Handling',
+  url: 'https://406.fail/',
+  source: 'hn',
+  category: 'community',
+  importanceLabel: 'NOTABLE',
+  importanceScore: 60,
+  tags: ['⚠️'],
+  summary: ['Unknown blog claims to introduce a new HTTP standard', 'No official RFC referenced'],
+  insight: 'Treat with caution — not an official standard.',
+  languages: [],
+  frameworks: [],
+  topics: ['api'],
+  publishedAt: new Date().toISOString(),
+  validationLabel: 'UNVERIFIED',
+  validationScore: 45,
+  validationReason: 'Unknown domain, no official RFC links, low engagement',
+  section: 'noteworthy',
+}
+
+export const suspiciousArticle: MockArticle = {
+  id: 'suspicious-1',
+  title: 'GPT-5 Secretly Released — Here Is How to Access It',
+  url: 'https://random-ai-blog.xyz/gpt5-secret',
+  source: 'hn',
+  category: 'launch',
+  importanceLabel: 'INFO',
+  importanceScore: 40,
+  tags: ['⚠️'],
+  summary: ['Unverified claim of GPT-5 access', 'No official OpenAI announcement', 'Source is unknown blog'],
+  insight: 'No evidence to support this claim.',
+  languages: [],
+  frameworks: ['openai'],
+  topics: ['llm'],
+  publishedAt: new Date().toISOString(),
+  validationLabel: 'SUSPICIOUS',
+  validationScore: 20,
+  validationReason: 'Unknown domain, sensational title, zero engagement, no verifiable evidence',
   section: 'noteworthy',
 }

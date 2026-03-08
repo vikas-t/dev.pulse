@@ -6,6 +6,7 @@ import { fetchRSSData } from '../sources/rss'
 import { fetchDevToData } from '../sources/devto'
 import { deduplicateArticles } from './dedup'
 import { scoreArticles } from '../ai/scorer'
+import { validateArticles, applyValidationToScoring } from '../ai/validator'
 import { summarizeArticles } from '../ai/summarizer'
 import { enrichTechTags } from './tech-tagger'
 import { prisma } from '../db/prisma'
@@ -53,7 +54,21 @@ export async function runPipeline(): Promise<PipelineResult> {
 
     console.log(`[Pipeline] Fetched ${allArticles.length} articles total`)
 
-    if (allArticles.length === 0) {
+    // Filter out social articles (HN/Reddit) with no engagement — they have no signal
+    const filteredArticles = allArticles.filter(article => {
+      if (article.source === 'hn' || article.source === 'reddit') {
+        const hasEngagement = (article.score ?? 0) > 0 || (article.commentCount ?? 0) > 0
+        if (!hasEngagement) {
+          console.log(`[Pipeline] Skipping zero-engagement ${article.source} article: ${article.title}`)
+        }
+        return hasEngagement
+      }
+      return true
+    })
+
+    console.log(`[Pipeline] ${filteredArticles.length} articles after engagement filter (${allArticles.length - filteredArticles.length} dropped)`)
+
+    if (filteredArticles.length === 0) {
       console.log('[Pipeline] No articles fetched, exiting')
       return {
         success: true,
@@ -66,11 +81,23 @@ export async function runPipeline(): Promise<PipelineResult> {
 
     // STEP 2: Deduplication (BEFORE AI processing to save costs)
     console.log('[Pipeline] Step 2: Deduplicating articles...')
-    const { canonical, duplicates } = deduplicateArticles(allArticles)
+    const { canonical, duplicates } = deduplicateArticles(filteredArticles)
 
     // STEP 3: AI Scoring (only canonical articles)
     console.log('[Pipeline] Step 3: AI scoring...')
     const scorings = await scoreArticles(canonical)
+
+    // STEP 3.5: AI Validation (MAJOR+ articles from non-trusted domains)
+    console.log('[Pipeline] Step 3.5: AI validation...')
+    const validations = await validateArticles(canonical, scorings, duplicates)
+
+    // Apply validation results — cap scores for low-credibility articles
+    for (const [url, validation] of validations) {
+      const scoring = scorings.get(url)
+      if (scoring) {
+        scorings.set(url, applyValidationToScoring(scoring, validation))
+      }
+    }
 
     // STEP 4: AI Summarization (only articles with score >= 40)
     console.log('[Pipeline] Step 4: AI summarization...')
@@ -83,12 +110,14 @@ export async function runPipeline(): Promise<PipelineResult> {
       if (!scoring) return null
 
       const summary = summaries.get(article.url)
+      const validation = validations.get(article.url)
       const techTags = enrichTechTags(article, scoring)
 
       return {
         article,
         scoring,
         summary,
+        validation,
         techTags,
       }
     }).filter(Boolean)
@@ -100,7 +129,7 @@ export async function runPipeline(): Promise<PipelineResult> {
     for (const item of enrichedArticles) {
       if (!item) continue
 
-      const { article, scoring, summary, techTags } = item
+      const { article, scoring, summary, validation, techTags } = item
 
       try {
         // Upsert article (use URL as unique key)
@@ -146,11 +175,19 @@ export async function runPipeline(): Promise<PipelineResult> {
             aiReasoning: scoring.reasoning,
             affectsProduction: scoring.affectsProduction,
 
+            // Validation
+            validationScore: validation?.validationScore ?? null,
+            validationLabel: validation?.validationLabel ?? null,
+            validationReason: validation?.validationReason ?? null,
+
             // Engagement
             sourceScore: article.score || null,
             commentCount: article.commentCount || null,
             hnDiscussionUrl: article.hnDiscussionUrl || null,
             redditDiscussionUrl: article.redditDiscussionUrl || null,
+
+            // Pipeline version
+            pipelineVersion: 'v2',
           },
           update: {
             // Update if article already exists (in case of re-run)
@@ -159,6 +196,10 @@ export async function runPipeline(): Promise<PipelineResult> {
             importanceScore: scoring.score,
             importanceLabel: scoring.label,
             tags: scoring.tags,
+            validationScore: validation?.validationScore ?? null,
+            validationLabel: validation?.validationLabel ?? null,
+            validationReason: validation?.validationReason ?? null,
+            pipelineVersion: 'v2',
             updatedAt: new Date(),
           },
         })
