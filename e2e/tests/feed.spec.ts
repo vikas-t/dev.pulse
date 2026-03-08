@@ -4,6 +4,7 @@ import {
   criticalArticle,
   noteworthyArticle1,
   spotlightArticle,
+  zeroEngagementHnArticle,
   refreshStatusCanRefresh,
 } from '../fixtures/mock-data'
 
@@ -89,5 +90,34 @@ test.describe('Main Feed', () => {
 
     // Check footer exists
     await expect(page.locator('footer')).toContainText('Built with Next.js')
+  })
+})
+
+test.describe('Feed - Zero Engagement Filtering', () => {
+  test('does not show HN article with zero engagement if pipeline filtered it', async ({ page }) => {
+    // Simulate pipeline correctly filtered zero-engagement article — it never reaches the API
+    const responseWithoutZeroEngagement = {
+      success: true,
+      articles: [criticalArticle, noteworthyArticle1],
+      count: 2,
+      total: 2,
+      hasMore: false,
+      cached: false,
+      distribution: { critical: 1, major: 1, notable: 0, info: 0, trending: 0 },
+      filters: { languages: [], frameworks: [] },
+    }
+
+    await page.route('**/api/articles/today*', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(responseWithoutZeroEngagement) })
+    })
+    await page.route('**/api/refresh', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(refreshStatusCanRefresh) })
+    })
+
+    await page.goto('/')
+
+    // Zero-engagement article should not appear
+    await expect(page.locator('article')).toHaveCount(2)
+    await expect(page.locator('body')).not.toContainText(zeroEngagementHnArticle.title)
   })
 })

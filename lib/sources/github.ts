@@ -102,7 +102,7 @@ export async function fetchTrendingRepos(): Promise<FetchResult> {
     since.setDate(since.getDate() - 7)
     const sinceStr = since.toISOString().split('T')[0]
 
-    const query = `topic:ai OR topic:machine-learning OR topic:llm OR topic:deep-learning created:>${sinceStr}`
+    const query = `ai machine-learning llm created:>${sinceStr}`
     const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=10`
 
     const response = await fetch(url, {

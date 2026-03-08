@@ -13,18 +13,6 @@ export interface SummaryResult {
 
 const SUMMARIZATION_PROMPT = `Create a developer-focused summary for this AI/ML update.
 
-**REQUIRED FORMAT (code-first):**
-
-## Installation
-\`\`\`{language}
-{installation_command}
-\`\`\`
-
-## Quick Start
-\`\`\`{language}
-{minimal_working_example}
-\`\`\`
-
 ## What Changed
 - Bullet point 1 (specific, technical)
 - Bullet point 2 (include version numbers, API names)
@@ -32,6 +20,18 @@ const SUMMARIZATION_PROMPT = `Create a developer-focused summary for this AI/ML 
 
 ## Why It Matters for Your Code
 {1-2 sentences explaining practical impact on developer workflows}
+
+{ONLY if an installation command is explicitly present in the source content:}
+## Installation
+\`\`\`{language}
+{installation_command}
+\`\`\`
+
+{ONLY if a real code example is explicitly present in the source content:}
+## Quick Start
+\`\`\`{language}
+{minimal_working_example}
+\`\`\`
 
 {IF BREAKING CHANGE: Include migration guide}
 ## Migration Guide
@@ -44,12 +44,13 @@ const SUMMARIZATION_PROMPT = `Create a developer-focused summary for this AI/ML 
 \`\`\`
 
 **RULES:**
-- Code examples are REQUIRED (installation + usage)
-- Be specific: versions, API names, function signatures
+- NEVER invent or hallucinate install commands, version numbers, or code examples
+- Only include installCommand if the source content explicitly mentions one
+- Only include codeExample if real code appears in the source content
+- If no code is available, omit codeExample and installCommand entirely (set to null)
+- Be specific: versions, API names, function signatures — only from what's in the content
 - Technical accuracy > brevity
-- No marketing language
-- Show concrete code, not pseudocode
-- If research paper: include link to code repo or "No code available"`
+- No marketing language`
 
 /**
  * Generate code-first summary for an article
@@ -76,10 +77,10 @@ Return JSON:
 {
   "summary": ["Bullet 1", "Bullet 2", "Bullet 3"],
   "insight": "Why this matters...",
-  "codeExample": "code here",
-  "codeLanguage": "python",
-  "installCommand": "pip install ...",
-  "migrationGuide": "migration code (if breaking)"
+  "codeExample": "only if real code exists in source content, otherwise null",
+  "codeLanguage": "only if codeExample is set, otherwise null",
+  "installCommand": "only if explicitly mentioned in source content, otherwise null",
+  "migrationGuide": "migration code (only if breaking change), otherwise null"
 }
 `
 

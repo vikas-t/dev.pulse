@@ -34,6 +34,9 @@ interface Article {
   githubStars?: number | null
   githubLanguage?: string | null
 
+  // Validation
+  validationLabel?: string | null
+
   // Metadata
   author?: string | null
   publishedAt: Date | string

@@ -45,6 +45,10 @@ Developers need diverse content - not just breaking changes. Include:
 - INFO (40-54): Research, community posts, general AI news, interesting discussions
 - NOISE (<40): Pure hype, low-quality content, irrelevant news
 
+**Engagement Rule (HARD RULE):**
+- If source is "hn" or "reddit" AND both score=0 AND commentCount=0 → cap at INFO (max 54), likely NOISE
+- Social media content with no engagement has no community validation — do not score it MAJOR or higher
+
 **Categories (EXPANDED):**
 - breaking: API changes, deprecations, removed features
 - library: New libraries, frameworks

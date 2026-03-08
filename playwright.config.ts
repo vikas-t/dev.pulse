@@ -20,7 +20,17 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120 * 1000,
+    env: {
+      NODE_ENV: 'test',
+      USE_MOCK_DATA: 'true',
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test?schema=public',
+      DIRECT_URL: 'postgresql://test:test@localhost:5432/test?schema=public',
+      OPENAI_API_KEY: 'sk-test-placeholder',
+      GITHUB_TOKEN: 'ghp_test_placeholder',
+      ADMIN_SECRET: 'test-admin-secret',
+      CRON_SECRET: 'test-cron-secret',
+    },
   },
 })
