@@ -37,7 +37,7 @@ const ALL_ARTICLES = [
   ...Array.from({ length: 5 }, (_, i) => makeArticle(`info-${i + 1}`, 45 - i)),
 ]
 
-function paginatedResponse(offset: number, limit: number, older = false) {
+function paginatedResponse(offset: number, limit: number) {
   const total = ALL_ARTICLES.length
   const articles = ALL_ARTICLES.slice(offset, offset + limit)
   return {
