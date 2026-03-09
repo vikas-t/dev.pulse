@@ -63,9 +63,8 @@ export async function POST(request: Request) {
       data: { lastRefreshAt: new Date() },
     })
 
-    // Invalidate article cache
+    // Invalidate article cache so next request rebuilds from DB
     articlesCache.invalidate()
-    console.log('[Cache] Invalidated after successful refresh')
 
     return NextResponse.json({
       success: result.success,

@@ -72,6 +72,14 @@
 
 ---
 
+## CRITICAL RULES (Non-Negotiable)
+
+- **NEVER write code or edit files without explicit user approval** — always explain the plan first and wait for a go-ahead
+- **NEVER hit APIs, trigger pipelines, or run commands that have side effects** without asking first — this includes curl, fetch, refresh, or any action that touches external systems or data
+- **NEVER assume "investigating" means "fixing"** — read and analyze first, propose a solution, wait for approval before touching anything
+
+---
+
 ## DON'Ts
 
 ### Planning & Architecture
