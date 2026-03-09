@@ -44,16 +44,18 @@ export async function GET(request: Request) {
     // Check cache first (only for unfiltered, non-historical requests)
     const hasFilters = (languages && languages.length > 0) || (frameworks && frameworks.length > 0)
 
+    console.log(`[Articles] GET /api/articles/today — limit=${limit}, offset=${offset}, older=${older}, epoch=${epoch}, languages=${languages?.join(',') || 'none'}, frameworks=${frameworks?.join(',') || 'none'}`)
+
     // Historical data requests bypass cache and query database directly
     if (older) {
-      console.log(`[Historical] Fetching older articles (offset=${offset}, limit=${limit})`)
+      console.log(`[Articles] Mode: HISTORICAL — bypassing cache, querying DB for articles before ${threeDaysAgo.toISOString()}`)
       return await fetchHistoricalArticles(threeDaysAgo, offset, limit, languages, frameworks)
     }
 
     if (!hasFilters) {
       const cached = articlesCache.getCached(epoch)
       if (cached) {
-        console.log(`[Cache HIT] Returning page from cached 3-day dataset (offset=${offset}, limit=${limit})`)
+        console.log(`[Articles] Serving from cache — returning articles[${offset}..${offset + limit}] of ${cached.length} total`)
 
         // Apply pagination to cached results
         const page = cached.slice(offset, offset + limit)
@@ -101,9 +103,8 @@ export async function GET(request: Request) {
           },
         })
       }
-      console.log('[Cache MISS] Querying database')
     } else {
-      console.log('[Cache SKIP] Filters applied, querying database')
+      console.log(`[Articles] Mode: FILTERED — skipping cache (languages=${languages?.join(',')}, frameworks=${frameworks?.join(',')})`)
     }
 
     // Build where clause for filtering
@@ -122,6 +123,18 @@ export async function GET(request: Request) {
     if (frameworks && frameworks.length > 0) {
       baseWhere.frameworks = { hasSome: frameworks }
     }
+
+    const dateStr = threeDaysAgo.toISOString().split('T')[0]
+    const filterStr = [
+      languages?.length ? `languages=${languages.join(',')}` : null,
+      frameworks?.length ? `frameworks=${frameworks.join(',')}` : null,
+    ].filter(Boolean).join(', ') || 'no filters'
+
+    console.log(`[DB] articles WHERE publishedAt >= ${dateStr} AND score >= 95 → critical (${filterStr})`)
+    console.log(`[DB] articles WHERE publishedAt >= ${dateStr} AND score 75-94 → major (${filterStr})`)
+    console.log(`[DB] articles WHERE publishedAt >= ${dateStr} AND score 55-74 → notable (${filterStr})`)
+    console.log(`[DB] articles WHERE publishedAt >= ${dateStr} AND score 40-54 → info (${filterStr})`)
+    console.log(`[DB] articles WHERE publishedAt >= ${dateStr} AND isGithubTrending = true → trending (${filterStr})`)
 
     // Fetch ALL articles in different score buckets (in parallel)
     // No take limits - we want the full 3-day dataset for pagination
@@ -152,13 +165,20 @@ export async function GET(request: Request) {
 
       // GitHub Trending: Always include fast-growing repos
       prisma.article.findMany({
-        where: {
-          ...baseWhere,
-          isGithubTrending: true,
-        },
+        where: { ...baseWhere, isGithubTrending: true },
         orderBy: [{ githubStars: 'desc' }, { publishedAt: 'desc' }],
       }),
     ])
+
+    const logBucket = (name: string, articles: { id: string, title: string, publishedAt: Date }[]) => {
+      console.log(`[Articles] DB ${name} (${articles.length}):`)
+      articles.forEach(a => console.log(`  - [${a.id.slice(0, 8)}] ${a.title.slice(0, 70)} (${a.publishedAt.toISOString().split('T')[0]})`))
+    }
+    logBucket('critical', critical)
+    logBucket('major', major)
+    logBucket('notable', notable)
+    logBucket('info', info)
+    logBucket('trending', trending)
 
     // Build balanced feed
     const balancedFeed: any[] = []
@@ -201,10 +221,11 @@ export async function GET(request: Request) {
     // 4. Add all remaining info articles
     addUnique(info, info.length)
 
+    console.log(`[Articles] Balanced feed built — total=${balancedFeed.length} articles (returning [${offset}..${offset + limit}])`)
+
     // Store full dataset in cache (only for unfiltered requests)
     if (!hasFilters) {
       articlesCache.setCache(balancedFeed, epoch)
-      console.log(`[Cache] Stored ${balancedFeed.length} articles (epoch=${epoch})`)
     }
 
     // Return paginated slice
@@ -286,6 +307,8 @@ async function fetchHistoricalArticles(
       where.frameworks = { hasSome: frameworks }
     }
 
+    console.log(`[Historical] DB query — publishedAt < ${beforeDate.toISOString()}, importanceScore >= 40, skip=${offset}, take=${limit}, languages=${languages?.join(',') || 'any'}, frameworks=${frameworks?.join(',') || 'any'}`)
+
     // Fetch historical articles with importance-first ordering
     const articles = await prisma.article.findMany({
       where,
@@ -300,6 +323,8 @@ async function fetchHistoricalArticles(
     // Check if more historical articles exist
     const totalHistorical = await prisma.article.count({ where })
     const hasMore = offset + limit < totalHistorical
+
+    console.log(`[Historical] DB results — found=${articles.length}, total=${totalHistorical}, hasMore=${hasMore}`)
 
     // Get oldest article date for UI
     const oldestArticle = articles.length > 0 ? articles[articles.length - 1] : null

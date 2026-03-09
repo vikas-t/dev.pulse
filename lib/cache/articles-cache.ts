@@ -40,8 +40,14 @@ export const articlesCache = {
    * @returns Cached articles or null if cache miss/stale
    */
   getCached(currentEpoch: string): Article[] | null {
-    if (!cache || !cache.isValid) {
+    if (!cache) {
       stats.misses++
+      console.log(`[Cache MISS] No cache exists`)
+      return null
+    }
+    if (!cache.isValid) {
+      stats.misses++
+      console.log(`[Cache MISS] Cache exists but is marked invalid (epoch=${cache.epoch}, articles=${cache.data.length})`)
       return null
     }
 
@@ -49,10 +55,12 @@ export const articlesCache = {
     if (cache.epoch !== currentEpoch) {
       stats.misses++
       cache.isValid = false
+      console.log(`[Cache MISS] Epoch mismatch — cache has epoch=${cache.epoch}, current epoch=${currentEpoch}`)
       return null
     }
 
     stats.hits++
+    console.log(`[Cache HIT] epoch=${cache.epoch}, articles=${cache.data.length}, cached at=${new Date(cache.timestamp).toISOString()}`)
     return cache.data
   },
 
@@ -68,6 +76,7 @@ export const articlesCache = {
       epoch,
       isValid: true,
     }
+    console.log(`[Cache SET] Stored ${articles.length} articles, epoch=${epoch}, timestamp=${new Date(cache.timestamp).toISOString()}`)
   },
 
   /**
@@ -77,6 +86,9 @@ export const articlesCache = {
   invalidate(): void {
     if (cache) {
       cache.isValid = false
+      console.log(`[Cache INVALIDATE] Cache marked stale (had ${cache.data.length} articles, epoch=${cache.epoch})`)
+    } else {
+      console.log(`[Cache INVALIDATE] No cache to invalidate`)
     }
   },
 
