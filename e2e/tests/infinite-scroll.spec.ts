@@ -210,8 +210,9 @@ test.describe('Infinite Scroll Pagination', () => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
 
-    // Should fall back to mock data (per fallback logic)
-    await expect(page.locator('article')).toHaveCount(3)
+    // Should show the empty state, not fabricated fallback content
+    await expect(page.locator('text=No articles yet')).toBeVisible()
+    await expect(page.locator('article')).toHaveCount(0)
   })
 
   test('handles network errors during pagination', async ({ page }) => {

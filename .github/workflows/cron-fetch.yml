@@ -1,0 +1,18 @@
+name: Fetch articles
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: '0 */6 * * *'
+  # Allow manual triggering from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  trigger-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger fetch pipeline
+        run: |
+          curl -fsS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://dev-pulse-yvu7.onrender.com/api/cron/fetch

@@ -6,23 +6,16 @@ import { SavedArticlesPanel } from '@/components/SavedArticlesPanel'
 import { Toast } from '@/components/Toast'
 import { useSavedArticles } from '@/hooks/useSavedArticles'
 import { useToast } from '@/hooks/useToast'
+import { formatArticleDate } from '@/lib/utils/formatDate'
 
 interface RefreshStatus {
-  canRefresh: boolean
   lastRefreshAt: string | null
-  nextRefreshAt: string | null
 }
 
 interface RefreshResult {
   success: boolean
-  rateLimited?: boolean
   message: string
-  nextRefreshAt?: string
-  stats?: {
-    articlesProcessed: number
-    articlesSaved: number
-    duration: string
-  }
+  lastRefreshAt?: string | null
 }
 
 interface Article {
@@ -51,126 +44,6 @@ interface Article {
   hnDiscussionUrl?: string | null
   section?: 'critical' | 'noteworthy' | 'spotlight' | 'historical'
 }
-
-// Mock data for development (when database is empty)
-const MOCK_ARTICLES: Article[] = [
-  {
-    id: '1',
-    title: 'Transformers 4.36.0: New LLM Support and Breaking Changes',
-    url: 'https://github.com/huggingface/transformers/releases/tag/v4.36.0',
-    source: 'github',
-    category: 'breaking',
-    importanceLabel: 'BREAKING',
-    importanceScore: 95,
-    tags: ['🔴'],
-    summary: [
-      'Added support for Phi-2 and Mixtral models',
-      'BREAKING: Removed deprecated AutoModelWithLMHead class',
-      'Performance improvements for inference',
-    ],
-    insight: 'If you\'re using AutoModelWithLMHead in production, you\'ll need to migrate to AutoModelForCausalLM. This affects all LLM-based applications using older Transformers patterns.',
-    codeExample: `from transformers import AutoModelForCausalLM, AutoTokenizer
-
-# Load model and tokenizer
-model = AutoModelForCausalLM.from_pretrained("microsoft/phi-2")
-tokenizer = AutoTokenizer.from_pretrained("microsoft/phi-2")
-
-# Generate text
-inputs = tokenizer("Hello, I am", return_tensors="pt")
-outputs = model.generate(**inputs, max_length=50)
-print(tokenizer.decode(outputs[0]))`,
-    codeLanguage: 'python',
-    installCommand: 'pip install transformers==4.36.0',
-    migrationGuide: `# Old (deprecated)
-from transformers import AutoModelWithLMHead
-model = AutoModelWithLMHead.from_pretrained("gpt2")
-
-# New (v4.36.0+)
-from transformers import AutoModelForCausalLM
-model = AutoModelForCausalLM.from_pretrained("gpt2")`,
-    languages: ['python'],
-    frameworks: ['transformers', 'pytorch'],
-    topics: ['llm', 'fine-tuning'],
-    githubRepo: 'huggingface/transformers',
-    githubStars: 125000,
-    githubLanguage: 'Python',
-    publishedAt: new Date('2024-01-07'),
-  },
-  {
-    id: '2',
-    title: 'LangChain 0.1.0: Stable API Release',
-    url: 'https://github.com/langchain-ai/langchain/releases/tag/v0.36.0',
-    source: 'github',
-    category: 'breaking',
-    importanceLabel: 'MAJOR',
-    importanceScore: 88,
-    tags: ['🚀', '🔴'],
-    summary: [
-      'First stable release with breaking changes to LCEL syntax',
-      'New streaming API for real-time responses',
-      'Improved RAG support with better vector store integrations',
-    ],
-    insight: 'LCEL chain syntax has changed. If you have production LangChain apps, review the migration guide to avoid runtime errors.',
-    codeExample: `from langchain.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema.output_parser import StrOutputParser
-
-# New LCEL syntax
-prompt = ChatPromptTemplate.from_template("Tell me a joke about {topic}")
-model = ChatOpenAI()
-chain = prompt | model | StrOutputParser()
-
-result = chain.invoke({"topic": "AI"})
-print(result)`,
-    codeLanguage: 'python',
-    installCommand: 'pip install langchain==0.1.0 langchain-openai',
-    languages: ['python'],
-    frameworks: ['langchain', 'openai'],
-    topics: ['llm', 'rag', 'agents'],
-    githubRepo: 'langchain-ai/langchain',
-    githubStars: 75000,
-    githubLanguage: 'Python',
-    publishedAt: new Date('2024-01-06'),
-  },
-  {
-    id: '3',
-    title: 'Ollama: Run Llama 2, Code Llama locally',
-    url: 'https://github.com/ollama/ollama',
-    source: 'github',
-    category: 'library',
-    importanceLabel: 'MAJOR',
-    importanceScore: 82,
-    tags: ['⭐', '🛠️'],
-    summary: [
-      'Run LLMs locally on macOS, Linux, and Windows',
-      'Optimized inference with GPU acceleration',
-      'Simple API compatible with OpenAI client libraries',
-    ],
-    insight: 'Perfect for local development and testing LLM features without API costs. Drop-in replacement for OpenAI API calls during development.',
-    codeExample: `# Using Ollama with OpenAI-compatible API
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="http://localhost:11434/v1",
-    api_key="ollama"  # required but unused
-)
-
-response = client.chat.completions.create(
-    model="llama2",
-    messages=[{"role": "user", "content": "Hello!"}]
-)
-print(response.choices[0].message.content)`,
-    codeLanguage: 'python',
-    installCommand: 'curl https://ollama.ai/install.sh | sh',
-    languages: ['go', 'python', 'javascript'],
-    frameworks: ['ollama'],
-    topics: ['llm', 'local-llm'],
-    githubRepo: 'ollama/ollama',
-    githubStars: 45000,
-    githubLanguage: 'Go',
-    publishedAt: new Date('2024-01-05'),
-  },
-]
 
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([])
@@ -252,62 +125,56 @@ export default function Home() {
 
       const data = await response.json()
 
-      if (data.success && (data.articles.length > 0 || newOffset > 0 || fetchHistorical)) {
-        // Use API data - deduplication happens inside setArticles to use current state
-        setArticles(prev => {
-          if (!append) {
-            return data.articles
-          }
-          // Deduplicate articles when appending (especially important at cache/historical boundary)
-          const existingUrls = new Set(prev.map(a => a.url))
-          const newArticles = data.articles.filter((a: Article) => !existingUrls.has(a.url))
-          return [...prev, ...newArticles]
-        })
-        setHasMore(data.hasMore ?? false)
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch articles')
+      }
 
-        // Update oldest date if provided
-        if (data.oldestDate) {
-          setOldestDate(data.oldestDate)
+      // Use API data - deduplication happens inside setArticles to use current state
+      setArticles(prev => {
+        if (!append) {
+          return data.articles
         }
+        // Deduplicate articles when appending (especially important at cache/historical boundary)
+        const existingUrls = new Set(prev.map(a => a.url))
+        const newArticles = data.articles.filter((a: Article) => !existingUrls.has(a.url))
+        return [...prev, ...newArticles]
+      })
+      setHasMore(data.hasMore ?? false)
 
-        // Track offsets based on mode
-        if (fetchHistorical) {
-          // Update historical offset to next position
-          const nextHistoricalOffset = newOffset + data.articles.length
-          setHistoricalOffset(nextHistoricalOffset)
-          // Sync ref immediately to avoid stale closure issues
-          historicalOffsetRef.current = nextHistoricalOffset
-        } else {
-          setTotalArticles(data.total ?? data.articles.length)
-          setOffset(newOffset)
+      // Update oldest date if provided
+      if (data.oldestDate) {
+        setOldestDate(data.oldestDate)
+      }
 
-          // Transition to historical mode when recent data is exhausted
-          // This can happen on initial load (append=false) if very few recent articles exist,
-          // or during infinite scroll (append=true) when we reach the end of recent data
-          if (!data.hasMore) {
-            console.log('[Scroll] Recent data exhausted, entering historical mode')
-            setInHistoricalMode(true)
-            inHistoricalModeRef.current = true
-            setHasMore(true) // Reset hasMore - there may be historical data
-            hasMoreRef.current = true
-            setHistoricalOffset(0)
-            historicalOffsetRef.current = 0
-          }
+      // Track offsets based on mode
+      if (fetchHistorical) {
+        // Update historical offset to next position
+        const nextHistoricalOffset = newOffset + data.articles.length
+        setHistoricalOffset(nextHistoricalOffset)
+        // Sync ref immediately to avoid stale closure issues
+        historicalOffsetRef.current = nextHistoricalOffset
+      } else {
+        setTotalArticles(data.total ?? data.articles.length)
+        setOffset(newOffset)
+
+        // Transition to historical mode when recent data is exhausted
+        // This can happen on initial load (append=false) if very few recent articles exist,
+        // or during infinite scroll (append=true) when we reach the end of recent data
+        if (!data.hasMore) {
+          console.log('[Scroll] Recent data exhausted, entering historical mode')
+          setInHistoricalMode(true)
+          inHistoricalModeRef.current = true
+          setHasMore(true) // Reset hasMore - there may be historical data
+          hasMoreRef.current = true
+          setHistoricalOffset(0)
+          historicalOffsetRef.current = 0
         }
-      } else if (newOffset === 0 && !fetchHistorical) {
-        // Use mock data on initial load when API returns empty or fails
-        console.log('Using mock data (database empty or error)')
-        setArticles(MOCK_ARTICLES)
-        setHasMore(false)
-        setTotalArticles(MOCK_ARTICLES.length)
       }
     } catch (err) {
       console.error('Error fetching articles:', err)
       if (newOffset === 0 && !fetchHistorical) {
-        // Fallback to mock data on initial load error
-        setArticles(MOCK_ARTICLES)
-        setHasMore(false)
-        setTotalArticles(MOCK_ARTICLES.length)
+        // Initial load failed — show error state with retry
+        setError('Could not load articles. Please check your connection and try again.')
       } else {
         // Show error for pagination failures
         setArticles(prev => {
@@ -321,9 +188,10 @@ export default function Home() {
     }
   }, [])
 
-  // Handle refresh button click
+  // Handle refresh button click — refetches the latest feed
+  // (data freshness comes from the scheduled pipeline, not this button)
   const handleRefresh = async () => {
-    if (isRefreshing || !refreshStatus?.canRefresh) return
+    if (isRefreshing) return
 
     setIsRefreshing(true)
     setRefreshMessage(null)
@@ -332,10 +200,7 @@ export default function Home() {
       const response = await fetch('/api/refresh', { method: 'POST' })
       const data: RefreshResult = await response.json()
 
-      if (data.rateLimited) {
-        setRefreshMessage('Already refreshed today. Try again tomorrow.')
-      } else if (data.success) {
-        setRefreshMessage(`Refreshed! ${data.stats?.articlesSaved || 0} articles updated.`)
+      if (data.success) {
         // Reset pagination and scroll to top (including historical state)
         setArticles([])
         setOffset(0)
@@ -347,6 +212,7 @@ export default function Home() {
         window.scrollTo(0, 0)
         // Re-fetch first page
         await fetchArticles(0, false)
+        setRefreshMessage('Feed updated')
       } else {
         setRefreshMessage('Refresh failed. Please try again later.')
       }
@@ -545,24 +411,16 @@ export default function Home() {
               <div className="flex flex-col items-end gap-1">
                 <button
                   onClick={handleRefresh}
-                  disabled={isRefreshing || !refreshStatus?.canRefresh}
+                  disabled={isRefreshing}
                   className={`
                     flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
                     transition-all duration-200
                     ${isRefreshing
                       ? 'bg-zinc-700 text-zinc-400 cursor-wait'
-                      : refreshStatus?.canRefresh
-                        ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-zinc-100'
-                        : 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed'
+                      : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-zinc-100'
                     }
                   `}
-                  title={
-                    refreshStatus?.canRefresh
-                      ? 'Fetch latest articles'
-                      : refreshStatus?.nextRefreshAt
-                        ? `Next refresh available at ${new Date(refreshStatus.nextRefreshAt).toLocaleTimeString()}`
-                        : 'Refresh unavailable'
-                  }
+                  title="Reload the latest articles"
                 >
                   <svg
                     className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
@@ -586,9 +444,9 @@ export default function Home() {
                   </p>
                 )}
 
-                {!refreshStatus?.canRefresh && refreshStatus?.nextRefreshAt && (
+                {refreshStatus?.lastRefreshAt && (
                   <p className="text-xs text-zinc-500 hidden sm:block">
-                    Next refresh: {new Date(refreshStatus.nextRefreshAt).toLocaleTimeString()}
+                    Last updated: {formatArticleDate(refreshStatus.lastRefreshAt)}
                   </p>
                 )}
               </div>
@@ -600,15 +458,28 @@ export default function Home() {
       {/* Main Feed */}
       <main className="mx-auto max-w-4xl px-6 py-8">
         {articles.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-zinc-400 text-lg mb-2">No articles yet</p>
-            <p className="text-zinc-600 text-sm">
-              Run the pipeline to fetch and process articles
-            </p>
-            <p className="text-zinc-600 text-xs mt-4 font-mono">
-              curl http://localhost:3000/api/cron/test
-            </p>
-          </div>
+          error ? (
+            <div className="text-center py-16">
+              <p className="text-amber-400 text-lg mb-2">Couldn&apos;t load articles</p>
+              <p className="text-zinc-500 text-sm mb-6">{error}</p>
+              <button
+                onClick={() => {
+                  setError(null)
+                  fetchArticles(0, false)
+                }}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-sm"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <p className="text-zinc-400 text-lg mb-2">No articles yet</p>
+              <p className="text-zinc-600 text-sm">
+                New articles arrive with the next scheduled fetch — check back soon
+              </p>
+            </div>
+          )
         ) : (
           <div className="space-y-8">
             {/* Critical Section */}

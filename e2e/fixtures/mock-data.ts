@@ -208,41 +208,27 @@ export const noteworthyOnlyResponse = {
   },
 }
 
-// Refresh status responses
+// Refresh status responses (GET /api/refresh)
+// Note: name kept from the old rate-limited API for import compatibility
 export const refreshStatusCanRefresh = {
-  canRefresh: true,
   lastRefreshAt: null,
-  nextRefreshAt: null,
 }
 
-export const refreshStatusRateLimited = {
-  canRefresh: false,
-  lastRefreshAt: new Date().toISOString(),
-  nextRefreshAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(), // 12 hours from now
+export const refreshStatusWithLastRefresh = {
+  lastRefreshAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
 }
 
 // Refresh POST responses
 export const refreshSuccessResponse = {
   success: true,
-  message: 'Refresh complete',
-  stats: {
-    articlesProcessed: 25,
-    articlesSaved: 20,
-    duration: '15.32s',
-  },
-}
-
-export const refreshRateLimitedResponse = {
-  success: false,
-  rateLimited: true,
-  message: 'Already refreshed today',
-  nextRefreshAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+  message: 'Feed refreshed',
+  lastRefreshAt: new Date().toISOString(),
 }
 
 export const refreshErrorResponse = {
   success: false,
   message: 'Refresh failed',
-  error: 'Pipeline error',
+  error: 'Cache error',
 }
 
 // Pagination mock responses
