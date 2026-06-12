@@ -20,7 +20,10 @@ const RATE_LIMIT_HOURS = 24
 export async function POST(request: Request) {
   try {
     const adminSecret = request.headers.get('x-admin-secret')
+    const adminSecretConfigured = !!process.env.ADMIN_SECRET
     const isAdmin = adminSecret && adminSecret === process.env.ADMIN_SECRET
+
+    console.log(`[Refresh] POST received — adminSecretProvided=${!!adminSecret}, adminSecretConfigured=${adminSecretConfigured}, isAdmin=${!!isAdmin}`)
 
     // Get or create system settings
     let settings = await prisma.systemSettings.findUnique({
@@ -42,6 +45,8 @@ export async function POST(request: Request) {
         const nextRefreshAt = new Date(
           settings.lastRefreshAt.getTime() + RATE_LIMIT_HOURS * 60 * 60 * 1000
         )
+
+        console.log(`[Refresh] Rate limited — hoursSinceLastRefresh=${hoursSinceLastRefresh.toFixed(2)}, nextRefreshAt=${nextRefreshAt.toISOString()}, isAdmin=${!!isAdmin}`)
 
         return NextResponse.json({
           success: false,
