@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { runPipeline } from '@/lib/pipeline/orchestrator'
+import { prisma } from '@/lib/db/prisma'
+import { articlesCache } from '@/lib/cache/articles-cache'
 
 /**
  * Production cron endpoint
@@ -25,6 +27,15 @@ export async function GET(request: Request) {
 
   try {
     const result = await runPipeline()
+
+    // Record the run and invalidate the cache so the next feed
+    // request picks up newly fetched articles
+    await prisma.systemSettings.upsert({
+      where: { id: 'system' },
+      create: { id: 'system', lastRefreshAt: new Date() },
+      update: { lastRefreshAt: new Date() },
+    })
+    articlesCache.invalidate()
 
     return NextResponse.json({
       success: result.success,

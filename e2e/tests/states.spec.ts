@@ -60,10 +60,7 @@ test.describe('Loading State', () => {
   })
 })
 
-test.describe('Empty API Response Fallback', () => {
-  // Note: The app falls back to built-in MOCK_ARTICLES when API returns empty
-  // This tests that behavior - the "empty state" UI is not reachable in practice
-
+test.describe('Empty State', () => {
   test.beforeEach(async ({ page }) => {
     // Mock refresh API
     await mockRefreshApi(page)
@@ -77,32 +74,25 @@ test.describe('Empty API Response Fallback', () => {
     })
   })
 
-  test('falls back to mock data when API returns empty', async ({ page }) => {
+  test('shows empty state when API returns no articles', async ({ page }) => {
     await page.goto('/')
 
-    // Should fall back to built-in mock data (3 articles) rather than showing empty state
+    await expect(page.locator('text=No articles yet')).toBeVisible()
+
+    // No article cards rendered
     const articleCards = page.locator('article')
-    await expect(articleCards).toHaveCount(3)
+    await expect(articleCards).toHaveCount(0)
   })
 
-  test('shows mock article content when API returns empty', async ({ page }) => {
+  test('header displays correctly with empty feed', async ({ page }) => {
     await page.goto('/')
 
-    // Should show the built-in mock article titles
-    await expect(page.locator('text=Transformers 4.36.0')).toBeVisible()
-  })
-
-  test('header displays correctly with fallback data', async ({ page }) => {
-    await page.goto('/')
-
-    // Header should show correct count from fallback data
     await expect(page.locator('h1')).toContainText('dev.pulse')
-    await expect(page.locator('header')).toContainText('3') // 3 mock articles
   })
 })
 
 test.describe('Error State', () => {
-  test('falls back to mock data on API error', async ({ page }) => {
+  test('shows error state with retry on API error', async ({ page }) => {
     // Mock refresh API
     await mockRefreshApi(page)
 
@@ -117,16 +107,15 @@ test.describe('Error State', () => {
 
     await page.goto('/')
 
-    // Should fall back to built-in mock data (3 articles)
-    // The app has MOCK_ARTICLES with 3 items that it uses as fallback
-    const articleCards = page.locator('article')
-    await expect(articleCards).toHaveCount(3)
+    // Should show error state instead of fake content
+    await expect(page.locator("text=Couldn't load articles")).toBeVisible()
+    await expect(page.locator('button', { hasText: 'Retry' })).toBeVisible()
 
-    // Should show the mock article titles
-    await expect(page.locator('text=Transformers 4.36.0')).toBeVisible()
+    const articleCards = page.locator('article')
+    await expect(articleCards).toHaveCount(0)
   })
 
-  test('falls back to mock data on network failure', async ({ page }) => {
+  test('shows error state on network failure', async ({ page }) => {
     // Mock refresh API
     await mockRefreshApi(page)
 
@@ -137,12 +126,41 @@ test.describe('Error State', () => {
 
     await page.goto('/')
 
-    // Should fall back to built-in mock data
-    const articleCards = page.locator('article')
-    await expect(articleCards).toHaveCount(3)
+    await expect(page.locator("text=Couldn't load articles")).toBeVisible()
   })
 
-  test('header still displays with fallback data', async ({ page }) => {
+  test('retry button refetches articles after failure', async ({ page }) => {
+    // Mock refresh API
+    await mockRefreshApi(page)
+
+    let requestCount = 0
+    await page.route('**/api/articles/today*', async route => {
+      requestCount++
+      if (requestCount === 1) {
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify(errorArticlesResponse),
+        })
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(emptyArticlesResponse),
+        })
+      }
+    })
+
+    await page.goto('/')
+
+    await expect(page.locator("text=Couldn't load articles")).toBeVisible()
+    await page.locator('button', { hasText: 'Retry' }).click()
+
+    // After retry, error is gone and empty state shows
+    await expect(page.locator('text=No articles yet')).toBeVisible()
+  })
+
+  test('header still displays on error', async ({ page }) => {
     // Mock refresh API
     await mockRefreshApi(page)
 

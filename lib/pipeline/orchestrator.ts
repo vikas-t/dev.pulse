@@ -83,13 +83,35 @@ export async function runPipeline(): Promise<PipelineResult> {
     console.log('[Pipeline] Step 2: Deduplicating articles...')
     const { canonical, duplicates } = deduplicateArticles(filteredArticles)
 
-    // STEP 3: AI Scoring (only canonical articles)
+    // STEP 2.5: Skip articles already in the DB — they were scored and
+    // summarized in a previous run; re-processing wastes OpenAI calls
+    const existing = await prisma.article.findMany({
+      where: { url: { in: canonical.map(a => a.url) } },
+      select: { url: true },
+    })
+    const existingUrls = new Set(existing.map(e => e.url))
+    const newArticles = canonical.filter(a => !existingUrls.has(a.url))
+
+    console.log(`[Pipeline] Step 2.5: ${newArticles.length} new articles to process (${existingUrls.size} already in DB, skipped)`)
+
+    if (newArticles.length === 0) {
+      console.log('[Pipeline] No new articles to process, exiting')
+      return {
+        success: true,
+        articlesProcessed: 0,
+        articlesSaved: 0,
+        errors: [],
+        duration: Date.now() - startTime,
+      }
+    }
+
+    // STEP 3: AI Scoring (only new canonical articles)
     console.log('[Pipeline] Step 3: AI scoring...')
-    const scorings = await scoreArticles(canonical)
+    const scorings = await scoreArticles(newArticles)
 
     // STEP 3.5: AI Validation (MAJOR+ articles from non-trusted domains)
     console.log('[Pipeline] Step 3.5: AI validation...')
-    const validations = await validateArticles(canonical, scorings, duplicates)
+    const validations = await validateArticles(newArticles, scorings, duplicates)
 
     // Drop UNVERIFIED and SUSPICIOUS articles — not reliable enough for the feed
     const droppedUrls = new Set<string>()
@@ -110,11 +132,11 @@ export async function runPipeline(): Promise<PipelineResult> {
 
     // STEP 4: AI Summarization (only articles with score >= 40)
     console.log('[Pipeline] Step 4: AI summarization...')
-    const summaries = await summarizeArticles(canonical, scorings)
+    const summaries = await summarizeArticles(newArticles, scorings)
 
     // STEP 5: Tech stack tagging
     console.log('[Pipeline] Step 5: Tech stack tagging...')
-    const enrichedArticles = canonical.map(article => {
+    const enrichedArticles = newArticles.map(article => {
       const scoring = scorings.get(article.url)
       if (!scoring || droppedUrls.has(article.url)) return null
 
@@ -236,12 +258,12 @@ export async function runPipeline(): Promise<PipelineResult> {
 
     const duration = Date.now() - startTime
 
-    console.log(`[Pipeline] ✓ Complete! Processed ${canonical.length} articles, saved ${savedCount} to database`)
+    console.log(`[Pipeline] ✓ Complete! Processed ${newArticles.length} articles, saved ${savedCount} to database`)
     console.log(`[Pipeline] Duration: ${(duration / 1000).toFixed(2)}s`)
 
     return {
       success: true,
-      articlesProcessed: canonical.length,
+      articlesProcessed: newArticles.length,
       articlesSaved: savedCount,
       errors,
       duration,

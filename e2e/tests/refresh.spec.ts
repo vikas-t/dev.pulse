@@ -2,14 +2,13 @@ import { test, expect } from '@playwright/test'
 import {
   mockArticlesResponse,
   refreshStatusCanRefresh,
-  refreshStatusRateLimited,
+  refreshStatusWithLastRefresh,
   refreshSuccessResponse,
-  refreshRateLimitedResponse,
   refreshErrorResponse,
 } from '../fixtures/mock-data'
 
 test.describe('Refresh Button', () => {
-  test.describe('when refresh is available', () => {
+  test.describe('basic behavior', () => {
     test.beforeEach(async ({ page }) => {
       // Mock articles API
       await page.route('**/api/articles/today*', async route => {
@@ -20,7 +19,7 @@ test.describe('Refresh Button', () => {
         })
       })
 
-      // Mock refresh status - can refresh
+      // Mock refresh status
       await page.route('**/api/refresh', async route => {
         if (route.request().method() === 'GET') {
           await route.fulfill({
@@ -39,7 +38,7 @@ test.describe('Refresh Button', () => {
       await expect(refreshButton).toBeVisible()
     })
 
-    test('refresh button is enabled when refresh is available', async ({ page }) => {
+    test('refresh button is always enabled', async ({ page }) => {
       await page.goto('/')
 
       const refreshButton = page.locator('button', { hasText: 'Refresh' })
@@ -98,12 +97,6 @@ test.describe('Refresh Button', () => {
       await page.goto('/')
 
       const refreshButton = page.locator('button', { hasText: 'Refresh' })
-
-      // Override the reload behavior for testing
-      await page.evaluate(() => {
-        window.location.reload = () => {}
-      })
-
       await refreshButton.click()
 
       // Wait for the POST to be called
@@ -114,9 +107,8 @@ test.describe('Refresh Button', () => {
     })
   })
 
-  test.describe('when rate limited', () => {
-    test.beforeEach(async ({ page }) => {
-      // Mock articles API
+  test.describe('last updated label', () => {
+    test('shows last updated time when available', async ({ page }) => {
       await page.route('**/api/articles/today*', async route => {
         await route.fulfill({
           status: 200,
@@ -125,36 +117,39 @@ test.describe('Refresh Button', () => {
         })
       })
 
-      // Mock refresh status - rate limited
       await page.route('**/api/refresh', async route => {
-        if (route.request().method() === 'GET') {
-          await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify(refreshStatusRateLimited),
-          })
-        } else if (route.request().method() === 'POST') {
-          await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify(refreshRateLimitedResponse),
-          })
-        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(refreshStatusWithLastRefresh),
+        })
       })
-    })
 
-    test('refresh button is disabled when rate limited', async ({ page }) => {
       await page.goto('/')
 
-      const refreshButton = page.locator('button', { hasText: 'Refresh' })
-      await expect(refreshButton).toBeDisabled()
+      await expect(page.locator('text=Last updated:')).toBeVisible()
     })
 
-    test('shows next refresh time when rate limited', async ({ page }) => {
+    test('hides last updated label when no data fetch has happened', async ({ page }) => {
+      await page.route('**/api/articles/today*', async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(mockArticlesResponse),
+        })
+      })
+
+      await page.route('**/api/refresh', async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(refreshStatusCanRefresh),
+        })
+      })
+
       await page.goto('/')
 
-      // Should show "Next refresh:" text
-      await expect(page.locator('text=Next refresh:')).toBeVisible()
+      await expect(page.locator('text=Last updated:')).not.toBeVisible()
     })
   })
 
@@ -193,46 +188,6 @@ test.describe('Refresh Button', () => {
 
       // Should show error message
       await expect(page.locator('text=Refresh failed')).toBeVisible({ timeout: 5000 })
-    })
-
-    test('shows rate limit message when already refreshed', async ({ page }) => {
-      // Mock articles API
-      await page.route('**/api/articles/today*', async route => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(mockArticlesResponse),
-        })
-      })
-
-      let getCount = 0
-
-      // Mock refresh - first GET returns canRefresh, POST returns rateLimited
-      await page.route('**/api/refresh', async route => {
-        if (route.request().method() === 'GET') {
-          getCount++
-          // First GET: can refresh, subsequent: rate limited
-          await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify(getCount === 1 ? refreshStatusCanRefresh : refreshStatusRateLimited),
-          })
-        } else if (route.request().method() === 'POST') {
-          await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify(refreshRateLimitedResponse),
-          })
-        }
-      })
-
-      await page.goto('/')
-
-      const refreshButton = page.locator('button', { hasText: 'Refresh' })
-      await refreshButton.click()
-
-      // Should show rate limit message
-      await expect(page.locator('text=Already refreshed today')).toBeVisible({ timeout: 5000 })
     })
   })
 

@@ -3,19 +3,14 @@ import { prisma } from '@/lib/db/prisma'
 import { runPipeline } from '@/lib/pipeline/orchestrator'
 import { articlesCache } from '@/lib/cache/articles-cache'
 
-const RATE_LIMIT_HOURS = 24
-
 /**
  * POST /api/refresh
- * User-triggered refresh with global rate limiting
+ * User-triggered refresh — invalidates the article cache so the next
+ * feed request rebuilds from the database. Does NOT run the fetch
+ * pipeline; that happens on a schedule via /api/cron/fetch.
  *
  * Headers:
- * - x-admin-secret: bypasses rate limit for admin force refresh
- *
- * Rate Limiting:
- * - Global limit: once per 24 hours for all users
- * - Backend-controlled via SystemSettings table
- * - Tamper-proof: frontend cannot bypass
+ * - x-admin-secret: forces a full pipeline run (admin only)
  */
 export async function POST(request: Request) {
   try {
@@ -25,61 +20,41 @@ export async function POST(request: Request) {
 
     console.log(`[Refresh] POST received — adminSecretProvided=${!!adminSecret}, adminSecretConfigured=${adminSecretConfigured}, isAdmin=${!!isAdmin}`)
 
-    // Get or create system settings
-    let settings = await prisma.systemSettings.findUnique({
-      where: { id: 'system' },
-    })
+    if (isAdmin) {
+      console.log('[Refresh] Admin force refresh — running pipeline...')
+      const result = await runPipeline()
 
-    if (!settings) {
-      settings = await prisma.systemSettings.create({
-        data: { id: 'system' },
+      await prisma.systemSettings.upsert({
+        where: { id: 'system' },
+        create: { id: 'system', lastRefreshAt: new Date() },
+        update: { lastRefreshAt: new Date() },
+      })
+      articlesCache.invalidate()
+
+      return NextResponse.json({
+        success: result.success,
+        message: 'Admin force refresh complete',
+        stats: {
+          articlesProcessed: result.articlesProcessed,
+          articlesSaved: result.articlesSaved,
+          duration: `${(result.duration / 1000).toFixed(2)}s`,
+        },
+        errors: result.errors.length > 0 ? result.errors : undefined,
       })
     }
 
-    // Check rate limit (skip for admin)
-    if (!isAdmin && settings.lastRefreshAt) {
-      const hoursSinceLastRefresh =
-        (Date.now() - settings.lastRefreshAt.getTime()) / (1000 * 60 * 60)
-
-      if (hoursSinceLastRefresh < RATE_LIMIT_HOURS) {
-        const nextRefreshAt = new Date(
-          settings.lastRefreshAt.getTime() + RATE_LIMIT_HOURS * 60 * 60 * 1000
-        )
-
-        console.log(`[Refresh] Rate limited — hoursSinceLastRefresh=${hoursSinceLastRefresh.toFixed(2)}, nextRefreshAt=${nextRefreshAt.toISOString()}, isAdmin=${!!isAdmin}`)
-
-        return NextResponse.json({
-          success: false,
-          rateLimited: true,
-          message: 'Already refreshed today',
-          nextRefreshAt: nextRefreshAt.toISOString(),
-        })
-      }
-    }
-
-    console.log(`[Refresh] Starting ${isAdmin ? 'admin force' : 'user-triggered'} refresh...`)
-
-    // Run the pipeline
-    const result = await runPipeline()
-
-    // Update last refresh time
-    await prisma.systemSettings.update({
-      where: { id: 'system' },
-      data: { lastRefreshAt: new Date() },
-    })
-
-    // Invalidate article cache so next request rebuilds from DB
+    // Regular user refresh: invalidate cache so the next feed request
+    // rebuilds from the database (picking up anything cron fetched)
     articlesCache.invalidate()
 
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: 'system' },
+    })
+
     return NextResponse.json({
-      success: result.success,
-      message: isAdmin ? 'Admin force refresh complete' : 'Refresh complete',
-      stats: {
-        articlesProcessed: result.articlesProcessed,
-        articlesSaved: result.articlesSaved,
-        duration: `${(result.duration / 1000).toFixed(2)}s`,
-      },
-      errors: result.errors.length > 0 ? result.errors : undefined,
+      success: true,
+      message: 'Feed refreshed',
+      lastRefreshAt: settings?.lastRefreshAt?.toISOString() || null,
     })
   } catch (error) {
     console.error('[Refresh] Error:', error)
@@ -97,7 +72,7 @@ export async function POST(request: Request) {
 
 /**
  * GET /api/refresh
- * Check refresh status (when can user refresh next)
+ * Returns when article data was last fetched by the pipeline
  */
 export async function GET() {
   try {
@@ -105,36 +80,15 @@ export async function GET() {
       where: { id: 'system' },
     })
 
-    if (!settings?.lastRefreshAt) {
-      return NextResponse.json({
-        canRefresh: true,
-        lastRefreshAt: null,
-        nextRefreshAt: null,
-      })
-    }
-
-    const hoursSinceLastRefresh =
-      (Date.now() - settings.lastRefreshAt.getTime()) / (1000 * 60 * 60)
-
-    const canRefresh = hoursSinceLastRefresh >= RATE_LIMIT_HOURS
-
-    const nextRefreshAt = canRefresh
-      ? null
-      : new Date(
-          settings.lastRefreshAt.getTime() + RATE_LIMIT_HOURS * 60 * 60 * 1000
-        )
-
     return NextResponse.json({
-      canRefresh,
-      lastRefreshAt: settings.lastRefreshAt.toISOString(),
-      nextRefreshAt: nextRefreshAt?.toISOString() || null,
+      lastRefreshAt: settings?.lastRefreshAt?.toISOString() || null,
     })
   } catch (error) {
     console.error('[Refresh] Error checking status:', error)
 
     return NextResponse.json(
       {
-        canRefresh: true,
+        lastRefreshAt: null,
         error: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
