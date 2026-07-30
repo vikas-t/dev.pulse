@@ -217,7 +217,7 @@ export default function Home() {
         setRefreshMessage('Feed updated')
         setShowSuccessFeedback(true)
         // Clear success glow after animation
-        setTimeout(() => setShowSuccessFeedback(false), 3000)
+        setTimeout(() => setShowSuccessFeedback(false), 2000)
       } else {
         setRefreshMessage('Refresh failed. Please try again later.')
       }
