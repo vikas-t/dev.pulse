@@ -171,5 +171,109 @@ describe('copyToClipboard', () => {
       expect(result.success).toBe(true)
       expect(result.message).toBe('Copied to clipboard')
     })
+
+    it('should pass options through to copyToClipboard', async () => {
+      clipboardWriteTextSpy.mockResolvedValue(undefined)
+
+      const { copyToClipboardWithFeedback } = await import('../lib/clipboard')
+
+      // Passing preferLegacy shouldn't affect the feedback result shape
+      const result = await copyToClipboardWithFeedback('  spaced text  ', { trim: true })
+
+      expect(result.success).toBe(true)
+      expect(result.message).toBe('Copied to clipboard')
+      // Clipboard API should have been called with the trimmed version
+      expect(clipboardWriteTextSpy).toHaveBeenCalledWith('spaced text')
+    })
+  })
+
+  describe('CopyOptions', () => {
+    beforeEach(() => {
+      // Ensure Clipboard API is available for most tests
+      Object.defineProperty(navigator, 'clipboard', {
+        value: {
+          writeText: vi.fn().mockResolvedValue(undefined),
+        },
+        configurable: true,
+        writable: true,
+      })
+      clipboardWriteTextSpy = navigator.clipboard.writeText as ReturnType<typeof vi.fn>
+    })
+
+    it('should trim whitespace when trim option is true', async () => {
+      const { copyToClipboard } = await import('../lib/clipboard')
+
+      const result = await copyToClipboard('  hello world  ', { trim: true })
+
+      expect(result).toBe(true)
+      expect(clipboardWriteTextSpy).toHaveBeenCalledWith('hello world')
+    })
+
+    it('should not trim when trim option is false', async () => {
+      const { copyToClipboard } = await import('../lib/clipboard')
+
+      const result = await copyToClipboard('  spaced  ', { trim: false })
+
+      expect(result).toBe(true)
+      expect(clipboardWriteTextSpy).toHaveBeenCalledWith('  spaced  ')
+    })
+
+    it('should not trim when trim option is not set', async () => {
+      const { copyToClipboard } = await import('../lib/clipboard')
+
+      const result = await copyToClipboard('  no trim  ')
+
+      expect(result).toBe(true)
+      expect(clipboardWriteTextSpy).toHaveBeenCalledWith('  no trim  ')
+    })
+
+    it('should skip Clipboard API and go straight to fallback when preferLegacy is true', async () => {
+      // execCommand should succeed
+      execCommandSpy = vi.fn().mockReturnValue(true)
+      document.execCommand = execCommandSpy as any
+
+      const { copyToClipboard } = await import('../lib/clipboard')
+
+      const result = await copyToClipboard('legacy only', { preferLegacy: true })
+
+      expect(result).toBe(true)
+      // Clipboard API should NOT have been called
+      expect(clipboardWriteTextSpy).not.toHaveBeenCalled()
+      // execCommand should have been used instead
+      expect(execCommandSpy).toHaveBeenCalledWith('copy')
+    })
+
+    it('should respect timeout option and fall back on timeout', async () => {
+      // Make Clipboard API hang indefinitely
+      clipboardWriteTextSpy.mockImplementation(() => new Promise(() => {}))
+
+      // Make execCommand succeed as fallback
+      execCommandSpy = vi.fn().mockReturnValue(true)
+      document.execCommand = execCommandSpy as any
+
+      const { copyToClipboard } = await import('../lib/clipboard')
+
+      const result = await copyToClipboard('timeout test', { timeout: 50 })
+
+      expect(result).toBe(true)
+      // Should have fallen back to execCommand
+      expect(execCommandSpy).toHaveBeenCalledWith('copy')
+    })
+
+    it('should fail overall when both Clipboard API (timeout) and fallback fail', async () => {
+      // Make Clipboard API hang indefinitely
+      clipboardWriteTextSpy.mockImplementation(() => new Promise(() => {}))
+
+      // Make execCommand fail too
+      execCommandSpy = vi.fn().mockReturnValue(false)
+      document.execCommand = execCommandSpy as any
+
+      const { copyToClipboard } = await import('../lib/clipboard')
+
+      const result = await copyToClipboard('timeout fail', { timeout: 50 })
+
+      expect(result).toBe(false)
+      expect(execCommandSpy).toHaveBeenCalledWith('copy')
+    })
   })
 })

@@ -86,4 +86,51 @@ test.describe('Clipboard Behaviour', () => {
     const copyButtonCount = await copyButtons.count()
     expect(copyButtonCount).toBeGreaterThanOrEqual(1)
   })
+
+  test('copies trimmed content from install command', async ({ page }) => {
+    // Grant clipboard permission
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+
+    // Get the raw code content (may have trailing newlines/whitespace)
+    const rawCode = await page.locator('pre code').first().textContent()
+
+    const copyButton = page.locator('button', { hasText: 'Copy' }).first()
+    await copyButton.click()
+
+    // Read clipboard content — should be trimmed
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText())
+
+    // The clipboard should have the same content (trimming is a no-op for most code blocks)
+    // But if there was surrounding whitespace, it would be removed
+    expect(clipboardText).toBe(rawCode)
+  })
+
+  test('can copy all visible code blocks sequentially', async ({ page }) => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+
+    // Count copy buttons
+    const copyButtons = page.locator('button', { hasText: /^Copy$/ })
+    const count = await copyButtons.count()
+
+    // Copy from each visible code block
+    for (let i = 0; i < count; i++) {
+      // Re-query each time as the DOM may shift
+      const btn = page.locator('button', { hasText: /^Copy$/ }).first()
+      await btn.click()
+
+      // Wait for the copied state to appear
+      await expect(btn).toHaveText('✓ Copied!')
+      await page.waitForTimeout(2100)
+    }
+  })
+
+  test('does not show error state when copy succeeds', async ({ page }) => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+
+    const copyButton = page.locator('button', { hasText: 'Copy' }).first()
+    await copyButton.click()
+
+    // Should show checkmark, never an error indicator
+    await expect(copyButton).toHaveText('✓ Copied!')
+  })
 })

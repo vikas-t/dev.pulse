@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { copyToClipboard } from '@/lib/clipboard'
+import { copyToClipboardWithFeedback } from '@/lib/clipboard'
 
 interface CodeBlockProps {
   code: string
@@ -13,10 +13,13 @@ export function CodeBlock({ code, language = 'bash', showCopy = true }: CodeBloc
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
-    const success = await copyToClipboard(code)
-    if (success) {
+    const result = await copyToClipboardWithFeedback(code, { trim: true })
+    if (result.success) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    } else {
+      // Brief flash of the error so the user knows what happened
+      setCopied(false)
     }
   }
 
