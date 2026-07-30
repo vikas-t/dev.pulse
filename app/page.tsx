@@ -65,6 +65,7 @@ export default function Home() {
   const [refreshStatus, setRefreshStatus] = useState<RefreshStatus | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null)
+  const [showSuccessFeedback, setShowSuccessFeedback] = useState(false)
 
   // Saved articles panel state (collapsed by default)
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(true)
@@ -195,6 +196,7 @@ export default function Home() {
 
     setIsRefreshing(true)
     setRefreshMessage(null)
+    setShowSuccessFeedback(false)
 
     try {
       const response = await fetch('/api/refresh', { method: 'POST' })
@@ -213,6 +215,9 @@ export default function Home() {
         // Re-fetch first page
         await fetchArticles(0, false)
         setRefreshMessage('Feed updated')
+        setShowSuccessFeedback(true)
+        // Clear success glow after animation
+        setTimeout(() => setShowSuccessFeedback(false), 3000)
       } else {
         setRefreshMessage('Refresh failed. Please try again later.')
       }
@@ -414,32 +419,52 @@ export default function Home() {
                   disabled={isRefreshing}
                   className={`
                     flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-                    transition-all duration-200
+                    transition-all duration-200 select-none
+                    active:scale-95
                     ${isRefreshing
                       ? 'bg-zinc-700 text-zinc-400 cursor-wait'
-                      : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-zinc-100'
+                      : showSuccessFeedback
+                        ? 'bg-emerald-900/50 text-emerald-300 animate-pulse-glow'
+                        : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-zinc-100 hover:scale-[1.02]'
                     }
                   `}
                   title="Reload the latest articles"
+                  aria-label={isRefreshing ? 'Refreshing articles' : showSuccessFeedback ? 'Updated successfully' : 'Refresh articles'}
                 >
-                  <svg
-                    className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                  <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                  {showSuccessFeedback ? (
+                    <svg
+                      className="w-4 h-4 text-emerald-400 animate-check-mark"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : 'transition-transform duration-500 hover:rotate-180'}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                  )}
+                  <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : showSuccessFeedback ? 'Updated!' : 'Refresh'}</span>
                 </button>
 
-                {refreshMessage && (
-                  <p className={`text-xs hidden sm:block ${refreshMessage.includes('failed') || refreshMessage.includes('Already') ? 'text-amber-400' : 'text-green-400'}`}>
+                {refreshMessage && !showSuccessFeedback && (
+                  <p className={`text-xs hidden sm:block animate-fade-in-up ${refreshMessage.includes('failed') || refreshMessage.includes('Already') ? 'text-amber-400' : 'text-green-400'}`}>
                     {refreshMessage}
                   </p>
                 )}

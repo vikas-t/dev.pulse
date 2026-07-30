@@ -217,4 +217,152 @@ test.describe('Refresh Button', () => {
       await expect(svg).toBeVisible()
     })
   })
+
+  test.describe('improved feedback', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.route('**/api/articles/today*', async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(mockArticlesResponse),
+        })
+      })
+    })
+
+    test('shows spinning icon during refresh', async ({ page }) => {
+      await page.route('**/api/refresh', async route => {
+        if (route.request().method() === 'POST') {
+          await new Promise(resolve => setTimeout(resolve, 300))
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(refreshSuccessResponse),
+          })
+        } else {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(refreshStatusCanRefresh),
+          })
+        }
+      })
+
+      await page.goto('/')
+
+      const refreshButton = page.locator('button', { hasText: 'Refresh' })
+      await refreshButton.click()
+
+      // SVG icon should have the animate-spin class when refreshing
+      const svg = page.locator('button[aria-label="Refreshing articles"] svg')
+      await expect(svg).toBeVisible()
+    })
+
+    test('shows checkmark icon on successful refresh', async ({ page }) => {
+      let postResolve: () => void
+      const postPromise = new Promise<void>(resolve => { postResolve = resolve })
+
+      await page.route('**/api/refresh', async route => {
+        if (route.request().method() === 'POST') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(refreshSuccessResponse),
+          })
+          postResolve()
+        } else {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(refreshStatusCanRefresh),
+          })
+        }
+      })
+
+      await page.goto('/')
+
+      await page.getByRole('button', { name: 'Refresh articles' }).click()
+      await postPromise
+
+      // After success, button text briefly changes to "Updated!" (accessible name "Updated successfully")
+      await expect(page.getByRole('button', { name: 'Updated successfully' })).toBeVisible({ timeout: 3000 })
+    })
+
+    test('shows "Updated!" text briefly after successful refresh', async ({ page }) => {
+      let postResolve: () => void
+      const postPromise = new Promise<void>(resolve => { postResolve = resolve })
+
+      await page.route('**/api/refresh', async route => {
+        if (route.request().method() === 'POST') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(refreshSuccessResponse),
+          })
+          postResolve()
+        } else {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(refreshStatusCanRefresh),
+          })
+        }
+      })
+
+      await page.goto('/')
+
+      await page.getByRole('button', { name: 'Refresh articles' }).click()
+      await postPromise
+
+      // The "Updated!" text appears (accessible name "Updated successfully")
+      await expect(page.getByRole('button', { name: 'Updated successfully' })).toBeVisible({ timeout: 3000 })
+
+      // After the timeout, it should revert to "Refresh"
+      await expect(page.getByRole('button', { name: 'Refresh articles' })).toBeVisible({ timeout: 5000 })
+    })
+
+    test('refresh button has accessible aria-labels', async ({ page }) => {
+      await page.route('**/api/refresh', async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(refreshStatusCanRefresh),
+        })
+      })
+
+      await page.goto('/')
+
+      // Initial state
+      await expect(page.getByRole('button', { name: 'Refresh articles' })).toBeVisible()
+    })
+
+    test('shows success message inline on successful refresh', async ({ page }) => {
+      let postResolve: () => void
+      const postPromise = new Promise<void>(resolve => { postResolve = resolve })
+
+      await page.route('**/api/refresh', async route => {
+        if (route.request().method() === 'POST') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(refreshSuccessResponse),
+          })
+          postResolve()
+        } else {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(refreshStatusCanRefresh),
+          })
+        }
+      })
+
+      await page.goto('/')
+
+      await page.getByRole('button', { name: 'Refresh articles' }).click()
+      await postPromise
+
+      // Button shows "Updated!" as success feedback
+      await expect(page.getByRole('button', { name: 'Updated successfully' })).toBeVisible({ timeout: 3000 })
+    })
+  })
 })
