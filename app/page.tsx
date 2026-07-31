@@ -534,7 +534,7 @@ export default function Home() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setIsSearchFocused(true)}
                 onBlur={() => setIsSearchFocused(false)}
-                placeholder="Search articles by title, source, topic, or tag…"
+                placeholder="Search articles…"
                 autoComplete="off"
                 spellCheck={false}
                 className="w-full pl-10 pr-24 py-2.5 rounded-lg bg-zinc-800/70 border border-zinc-700 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-colors"
