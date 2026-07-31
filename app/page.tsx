@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { DevArticleCard } from '@/components/DevArticleCard'
 import { SavedArticlesPanel } from '@/components/SavedArticlesPanel'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { Toast } from '@/components/Toast'
 import { useSavedArticles } from '@/hooks/useSavedArticles'
 import { useToast } from '@/hooks/useToast'
@@ -337,14 +338,14 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <div className="mx-auto max-w-4xl px-6 py-12">
           <div className="animate-pulse">
-            <div className="h-8 bg-zinc-800 rounded w-64 mb-2"></div>
-            <div className="h-4 bg-zinc-800 rounded w-48 mb-8"></div>
+            <div className="h-8 bg-zinc-200 dark:bg-zinc-800 rounded w-64 mb-2"></div>
+            <div className="h-4 bg-zinc-200 dark:bg-zinc-800 rounded w-48 mb-8"></div>
             <div className="space-y-6">
               {[1, 2, 3].map(i => (
-                <div key={i} className="h-48 bg-zinc-900 rounded-lg border border-zinc-800"></div>
+                <div key={i} className="h-48 bg-zinc-100 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800"></div>
               ))}
             </div>
           </div>
@@ -354,7 +355,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       {/* Persistent Saved Articles Sidebar */}
       <SavedArticlesPanel
         isCollapsed={isPanelCollapsed}
@@ -374,7 +375,7 @@ export default function Home() {
         `}
       >
         {/* Header */}
-        <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
+        <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-sm sticky top-0 z-10 dark:border-zinc-800 dark:bg-zinc-900/50">
           <div className="mx-auto max-w-4xl px-6 py-6">
             <div className="flex items-center justify-between gap-4">
               {/* Left side: Mobile hamburger + Title */}
@@ -382,7 +383,7 @@ export default function Home() {
                 {/* Mobile hamburger menu - only visible on mobile */}
                 <button
                   onClick={() => setIsPanelCollapsed(false)}
-                  className="sm:hidden p-2 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+                  className="sm:hidden p-2 text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors dark:text-zinc-400 dark:hover:text-zinc-200 dark:hover:bg-zinc-800"
                   aria-label="Open saved articles panel"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -391,10 +392,10 @@ export default function Home() {
                 </button>
 
                 <div>
-                  <h1 className="text-2xl font-bold text-zinc-100">
+                  <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                     dev.pulse
                   </h1>
-                  <p className="text-sm text-zinc-400 mt-1 hidden sm:block">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 hidden sm:block">
                     {oldestDate
                       ? `${articles.length} AI Updates (through ${new Date(oldestDate).toLocaleDateString()})`
                       : totalArticles > 0
@@ -405,8 +406,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Right side: Refresh button */}
+              {/* Right side: theme toggle + refresh */}
               <div className="flex items-center gap-2">
+                <ThemeToggle />
                 {/* Refresh Button */}
               <div className="flex flex-col items-end gap-1">
                 <button
@@ -416,8 +418,8 @@ export default function Home() {
                     flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
                     transition-all duration-200
                     ${isRefreshing
-                      ? 'bg-zinc-700 text-zinc-400 cursor-wait'
-                      : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-zinc-100'
+                      ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 cursor-wait'
+                      : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 hover:text-zinc-900 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-200 dark:hover:text-zinc-100'
                     }
                   `}
                   title="Reload the latest articles"
