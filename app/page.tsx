@@ -420,9 +420,12 @@ export default function Home() {
                   className={`
                     flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
                     transition-all duration-200 select-none
+                    disabled:cursor-wait
+                    disabled:opacity-70
+                    disabled:pointer-events-none
                     active:scale-95
                     ${isRefreshing
-                      ? 'bg-zinc-700 text-zinc-400 cursor-wait'
+                      ? 'bg-zinc-700 text-zinc-400'
                       : showSuccessFeedback
                         ? 'bg-emerald-900/50 text-emerald-300 animate-pulse-glow'
                         : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-zinc-100 hover:scale-[1.02]'

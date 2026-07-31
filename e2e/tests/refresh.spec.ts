@@ -364,5 +364,48 @@ test.describe('Refresh Button', () => {
       // Button shows "Updated!" as success feedback
       await expect(page.getByRole('button', { name: 'Updated successfully' })).toBeVisible({ timeout: 3000 })
     })
+
+    test('refresh button is disabled while refresh is in flight and re-enabled after', async ({ page }) => {
+      let postResolve: () => void
+      const postPromise = new Promise<void>(resolve => { postResolve = resolve })
+
+      await page.route('**/api/refresh', async route => {
+        if (route.request().method() === 'POST') {
+          // Hold the response open so the button stays disabled
+          await new Promise(resolve => setTimeout(resolve, 500))
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(refreshSuccessResponse),
+          })
+          postResolve()
+        } else {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(refreshStatusCanRefresh),
+          })
+        }
+      })
+
+      await page.goto('/')
+
+      // Enabled before clicking
+      const refreshButton = page.getByRole('button', { name: 'Refresh articles' })
+      await expect(refreshButton).toBeEnabled()
+
+      await refreshButton.click()
+
+      // While in flight the button is disabled (cannot be double-clicked) and greyed out
+      const refreshingButton = page.getByRole('button', { name: 'Refreshing articles' })
+      await expect(refreshingButton).toBeDisabled({ timeout: 3000 })
+      await expect(refreshingButton).toHaveCSS('cursor', 'wait')
+
+      await postPromise
+
+      // After the request settles, the button is interactive again
+      await expect(page.getByRole('button', { name: 'Updated successfully' })).toBeVisible({ timeout: 3000 })
+      await expect(page.getByRole('button', { name: 'Updated successfully' })).toBeEnabled()
+    })
   })
 })
