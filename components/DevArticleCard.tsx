@@ -66,6 +66,36 @@ function getTagTooltip(tag: string): string {
   return tooltips[tag] || tag
 }
 
+// Human-readable label + emoji for the article's source
+function getSourceInfo(source: string): { label: string; emoji: string } {
+  const sources: Record<string, { label: string; emoji: string }> = {
+    github: { label: 'GitHub', emoji: '🐙' },
+    hn: { label: 'Hacker News', emoji: '💬' },
+    blog: { label: 'Blog', emoji: '📝' },
+    arxiv: { label: 'arXiv', emoji: '📄' },
+    reddit: { label: 'Reddit', emoji: '🧵' },
+    twitter: { label: 'X', emoji: '𝕏' },
+    docs: { label: 'Docs', emoji: '📖' },
+  }
+  return sources[source] || { label: source, emoji: '🌐' }
+}
+
+// Small "Verified" reliability badge shown when a validation label is present
+function VerifiedBadge({ label }: { label: string }) {
+  if (label !== 'VERIFIED') return null
+
+  return (
+    <span
+      data-testid="verified-badge"
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+      title="Verified — reliable source"
+    >
+      <span>✓</span>
+      <span>Verified</span>
+    </span>
+  )
+}
+
 export function DevArticleCard({ article, index, isSaved = false, onToggleSave }: DevArticleCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -86,6 +116,15 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
           )}
 
           <CategoryBadge category={article.category} />
+          <span
+            data-testid="source-badge"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700"
+            title={`Source: ${getSourceInfo(article.source).label}`}
+          >
+            <span>{getSourceInfo(article.source).emoji}</span>
+            <span>{getSourceInfo(article.source).label}</span>
+          </span>
+          <VerifiedBadge label={article.validationLabel || ''} />
           <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
             article.importanceLabel === 'BREAKING' ? 'bg-red-500/20 text-red-400' :
             article.importanceLabel === 'MAJOR' ? 'bg-blue-500/20 text-blue-400' :
@@ -111,6 +150,11 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
               )}
               <span>•</span>
             </>
+          )}
+          {article.author && (
+            <span data-testid="article-author" className="text-zinc-400">
+              by {article.author}
+            </span>
           )}
           <span className="text-zinc-400">{formatArticleDate(article.publishedAt)}</span>
           {onToggleSave && (
@@ -160,6 +204,20 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
           </span>
         ))}
       </div>
+
+      {/* Topic Tags */}
+      {article.topics && article.topics.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4" data-testid="topic-tags">
+          {article.topics.map(topic => (
+            <span
+              key={topic}
+              className="px-2 py-0.5 bg-zinc-800 text-zinc-500 text-xs rounded border border-zinc-700"
+            >
+              #{topic}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Expand/Collapse Button */}
       <button
