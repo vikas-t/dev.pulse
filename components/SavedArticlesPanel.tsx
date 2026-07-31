@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { SavedArticleData } from '@/lib/context/SavedArticlesContext'
 import { CategoryBadge } from './CategoryBadge'
 import { formatArticleDate } from '@/lib/utils/formatDate'
@@ -9,6 +10,7 @@ interface SavedArticlesPanelProps {
   onToggleCollapse: () => void
   savedArticles: SavedArticleData[]
   onUnsave: (id: string) => void
+  onClearAll: () => void
 }
 
 // Category type for CategoryBadge
@@ -22,11 +24,27 @@ function isValidCategory(category: string): category is Category {
   ].includes(category)
 }
 
+// Relative "saved X ago" label so users know how recently something was bookmarked
+function formatSavedAt(iso: string, now: number = Date.now()): string {
+  const savedMs = new Date(iso).getTime()
+  if (Number.isNaN(savedMs)) return 'saved'
+  const diffSeconds = Math.max(0, Math.floor((now - savedMs) / 1000))
+  if (diffSeconds < 60) return 'just now'
+  const diffMinutes = Math.floor(diffSeconds / 60)
+  if (diffMinutes < 60) return `${diffMinutes}m ago`
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffDays === 1) return 'yesterday'
+  return `${diffDays}d ago`
+}
+
 export function SavedArticlesPanel({
   isCollapsed,
   onToggleCollapse,
   savedArticles,
   onUnsave,
+  onClearAll,
 }: SavedArticlesPanelProps) {
   // Sort articles by publishedAt date (newest first)
   const sortedArticles = [...savedArticles].sort((a, b) => {
@@ -34,6 +52,28 @@ export function SavedArticlesPanel({
     const dateB = new Date(b.publishedAt).getTime()
     return dateB - dateA
   })
+
+  // Pressing Escape closes the panel
+  useEffect(() => {
+    if (isCollapsed) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onToggleCollapse()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isCollapsed, onToggleCollapse])
+
+  // Lock background scroll while the panel is expanded
+  useEffect(() => {
+    if (isCollapsed) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isCollapsed])
 
   return (
     <aside
@@ -97,6 +137,17 @@ export function SavedArticlesPanel({
               </p>
             </div>
           </div>
+
+          {/* "Clear all" appears once there's something to manage */}
+          {savedArticles.length > 0 && (
+            <button
+              onClick={onClearAll}
+              className="text-xs text-zinc-500 hover:text-red-400 hover:bg-red-500/10 px-2 py-1 rounded transition-colors"
+              aria-label="Clear all saved articles"
+            >
+              Clear all
+            </button>
+          )}
         </div>
 
         {/* Panel Content - Scrollable */}
@@ -162,6 +213,7 @@ function SavedArticleItem({ article, onUnsave }: SavedArticleItemProps) {
       onClick={handleClick}
       role="button"
       tabIndex={0}
+      aria-label={`Open ${article.title}`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
@@ -191,7 +243,7 @@ function SavedArticleItem({ article, onUnsave }: SavedArticleItemProps) {
 
         <button
           onClick={handleUnsave}
-          className="text-amber-400 hover:text-amber-300 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="text-amber-400 hover:text-amber-300 p-0.5 transition-colors"
           aria-label="Remove from saved"
         >
           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -208,6 +260,12 @@ function SavedArticleItem({ article, onUnsave }: SavedArticleItemProps) {
         <span>{article.source}</span>
         <span>•</span>
         <span>{formatArticleDate(article.publishedAt)}</span>
+        {article.savedAt && (
+          <>
+            <span>•</span>
+            <span className="text-zinc-600">{formatSavedAt(article.savedAt)}</span>
+          </>
+        )}
       </div>
     </div>
   )

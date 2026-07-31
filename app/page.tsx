@@ -68,7 +68,7 @@ export default function Home() {
 
   // Saved articles panel state (collapsed by default)
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(true)
-  const { savedArticles, isSaved, saveArticle, unsaveArticle, savedCount } = useSavedArticles()
+  const { savedArticles, isSaved, saveArticle, unsaveArticle, clearAll, savedCount } = useSavedArticles()
   const { toast, showToast, hideToast } = useToast()
 
   // Ref for IntersectionObserver sentinel
@@ -363,6 +363,10 @@ export default function Home() {
         onUnsave={(id) => {
           unsaveArticle(id)
           showToast('Removed from saved')
+        }}
+        onClearAll={() => {
+          clearAll()
+          showToast('All saved articles cleared')
         }}
       />
 

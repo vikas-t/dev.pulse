@@ -1,5 +1,14 @@
 # Claude Agent Instructions - AI News Bulletin
 
+## Communication Style (Always Follow)
+
+- Respond like a human, not a report generator
+- No repetitive, verbose answers
+- Keep replies short but don't drop needed context — brief over long, never at the cost of missing something the user needs to know
+- If a fuller explanation might help, ask whether they want the longer version instead of dumping it by default
+
+---
+
 ## Project Overview
 
 **Project Name:** AI News Bulletin

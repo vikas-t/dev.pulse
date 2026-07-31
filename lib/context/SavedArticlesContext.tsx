@@ -27,6 +27,7 @@ export interface SavedArticlesContextValue {
     publishedAt: Date | string
   }) => boolean // Returns false if at limit
   unsaveArticle: (id: string) => void
+  clearAll: () => void
   savedCount: number
 }
 
@@ -129,15 +130,20 @@ export function SavedArticlesProvider({ children }: { children: ReactNode }) {
     setSavedArticles(prev => prev.filter(a => a.id !== id))
   }, [])
 
+  const clearAll = useCallback(() => {
+    setSavedArticles([])
+  }, [])
+
   const value = useMemo(
     () => ({
       savedArticles,
       isSaved,
       saveArticle,
       unsaveArticle,
+      clearAll,
       savedCount: savedArticles.length,
     }),
-    [savedArticles, isSaved, saveArticle, unsaveArticle]
+    [savedArticles, isSaved, saveArticle, unsaveArticle, clearAll]
   )
 
   return (
