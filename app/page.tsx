@@ -431,7 +431,7 @@ export default function Home() {
                         : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-zinc-100 hover:scale-[1.02]'
                     }
                   `}
-                  title="Reload the latest articles"
+                  title="Refresh feed"
                   aria-label={isRefreshing ? 'Refreshing articles' : showSuccessFeedback ? 'Updated successfully' : 'Refresh articles'}
                 >
                   {showSuccessFeedback ? (

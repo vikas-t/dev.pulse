@@ -335,6 +335,24 @@ test.describe('Refresh Button', () => {
       await expect(page.getByRole('button', { name: 'Refresh articles' })).toBeVisible()
     })
 
+    test('refresh button has a "Refresh feed" tooltip on hover', async ({ page }) => {
+      await page.route('**/api/refresh', async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(refreshStatusCanRefresh),
+        })
+      })
+
+      await page.goto('/')
+
+      const refreshButton = page.getByRole('button', { name: 'Refresh articles' })
+      await expect(refreshButton).toBeVisible()
+
+      // The native title tooltip should explain the action clearly on hover
+      await expect(refreshButton).toHaveAttribute('title', 'Refresh feed')
+    })
+
     test('shows success message inline on successful refresh', async ({ page }) => {
       let postResolve: () => void
       const postPromise = new Promise<void>(resolve => { postResolve = resolve })
