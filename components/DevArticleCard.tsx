@@ -5,6 +5,7 @@ import { CategoryBadge } from './CategoryBadge'
 import { CodeBlock } from './CodeBlock'
 import { SaveButton } from './SaveButton'
 import { formatArticleDate } from '@/lib/utils/formatDate'
+import { computeReadTime } from '@/lib/utils/readTime'
 
 interface Article {
   id: string
@@ -157,6 +158,7 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
             </span>
           )}
           <span className="text-zinc-400">{formatArticleDate(article.publishedAt)}</span>
+          <span data-testid="read-time" className="text-zinc-500">· {computeReadTime(article.summary, article.insight)} min read</span>
           {onToggleSave && (
             <SaveButton isSaved={isSaved} onToggle={onToggleSave} size="sm" />
           )}
