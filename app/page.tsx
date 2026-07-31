@@ -7,6 +7,7 @@ import { Toast } from '@/components/Toast'
 import { useSavedArticles } from '@/hooks/useSavedArticles'
 import { useToast } from '@/hooks/useToast'
 import { formatArticleDate } from '@/lib/utils/formatDate'
+import { joinSearchable, searchMatches } from '@/lib/utils/search'
 
 interface RefreshStatus {
   lastRefreshAt: string | null
@@ -71,6 +72,11 @@ export default function Home() {
   const { savedArticles, isSaved, saveArticle, unsaveArticle, savedCount } = useSavedArticles()
   const { toast, showToast, hideToast } = useToast()
 
+  // Search state (client-side filter over loaded articles)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
   // Ref for IntersectionObserver sentinel
   const loadMoreRef = useRef<HTMLDivElement>(null)
 
@@ -91,6 +97,55 @@ export default function Home() {
     inHistoricalModeRef.current = inHistoricalMode
     historicalOffsetRef.current = historicalOffset
   }, [offset, hasMore, loadingMore, isRefreshing, inHistoricalMode, historicalOffset])
+
+  // Helper: does an article match the current search query?
+  const matchesQuery = useCallback((article: Article, query: string): boolean => {
+    const haystack = joinSearchable(
+      article.title,
+      article.source,
+      ...(article.tags || []),
+      ...(article.summary || []),
+      ...(article.topics || []),
+      ...(article.languages || []),
+      ...(article.frameworks || []),
+      article.githubRepo,
+      article.githubLanguage,
+      article.author
+    )
+    return searchMatches(query, haystack)
+  }, [])
+
+  // Derived list of articles filtered by the search query (search is over the
+  // currently loaded set; query text is never cleared except by explicit user
+  // action via the clear button).
+  const filteredArticles = searchQuery.trim()
+    ? articles.filter(a => matchesQuery(a, searchQuery))
+    : articles
+
+  const isSearchActive = searchQuery.trim().length > 0
+
+  // Keyboard shortcut: pressing "/" focuses the search box (unless already typing)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const isTyping =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      if (e.key === '/' && !isTyping) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+      const searchEl = searchInputRef.current
+      if (e.key === 'Escape' && searchEl && searchEl === document.activeElement) {
+        // Blur without clearing the query so the text the user typed is kept
+        searchEl.blur()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   // Fetch refresh status
   const fetchRefreshStatus = useCallback(async () => {
@@ -452,6 +507,68 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {/* Search box */}
+          <div className="mt-4">
+            <label
+              htmlFor="article-search"
+              className="sr-only"
+            >
+              Search articles
+            </label>
+            <div className="relative">
+              <svg
+                className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+              </svg>
+              <input
+                id="article-search"
+                ref={searchInputRef}
+                type="text"
+                role="searchbox"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setIsSearchFocused(false)}
+                placeholder="Search articles by title, source, topic, or tag…"
+                autoComplete="off"
+                spellCheck={false}
+                className="w-full pl-10 pr-24 py-2.5 rounded-lg bg-zinc-800/70 border border-zinc-700 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-colors"
+                data-testid="article-search"
+              />
+              {isSearchActive ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('')
+                    searchInputRef.current?.focus()
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 px-2 py-1 text-zinc-400 hover:text-zinc-100 rounded-md hover:bg-zinc-700/70 transition-colors"
+                  aria-label="Clear search"
+                  data-testid="clear-search"
+                >
+                  ✕
+                </button>
+              ) : (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 border border-zinc-600 rounded px-1.5 py-0.5 pointer-events-none">
+                  /
+                </span>
+              )}
+            </div>
+
+            {/* Hint copy */}
+            <p className="mt-1.5 text-xs text-zinc-500">
+              {isSearchActive
+                ? `${filteredArticles.length} result${filteredArticles.length === 1 ? '' : 's'} — press Esc to keep your text and close the box`
+                : isSearchFocused
+                  ? 'Try: a topic (e.g. security, rag), a source, or a tag. Press / anytime to jump back here.'
+                  : `Search across ${articles.length} loaded ${articles.length === 1 ? 'article' : 'articles'}. Tip: press / to focus.`}
+            </p>
+          </div>
         </div>
       </header>
 
@@ -482,8 +599,20 @@ export default function Home() {
           )
         ) : (
           <div className="space-y-8">
+            {/* Search results header (only when a query is active) */}
+            {isSearchActive && (
+              <div className="mb-2 pb-3 border-b border-zinc-800">
+                <h2 className="text-sm font-bold text-zinc-200 uppercase tracking-wider">
+                  Search results
+                </h2>
+                <p className="text-xs text-zinc-500 mt-1" data-testid="search-results-count">
+                  {filteredArticles.length} matching article{filteredArticles.length === 1 ? '' : 's'} for “{searchQuery.trim()}”
+                </p>
+              </div>
+            )}
+
             {/* Critical Section */}
-            {articles.filter(a => a.section === 'critical').length > 0 && (
+            {filteredArticles.filter(a => a.section === 'critical').length > 0 && (
               <section>
                 <div className="mb-4 pb-2 border-b border-red-900/30">
                   <h2 className="text-sm font-bold text-red-400 uppercase tracking-wider flex items-center gap-2">
@@ -495,7 +624,7 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="space-y-6">
-                  {articles
+                  {filteredArticles
                     .filter(a => a.section === 'critical')
                     .map((article, index) => (
                       <DevArticleCard
@@ -511,7 +640,7 @@ export default function Home() {
             )}
 
             {/* Noteworthy Section */}
-            {articles.filter(a => a.section === 'noteworthy' || !a.section).length > 0 && (
+            {filteredArticles.filter(a => a.section === 'noteworthy' || !a.section).length > 0 && (
               <section>
                 <div className="mb-4 pb-2 border-b border-green-900/30">
                   <h2 className="text-sm font-bold text-green-400 uppercase tracking-wider flex items-center gap-2">
@@ -523,7 +652,7 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="space-y-6">
-                  {articles
+                  {filteredArticles
                     .filter(a => a.section === 'noteworthy' || !a.section)
                     .map((article, index) => (
                       <DevArticleCard
@@ -539,7 +668,7 @@ export default function Home() {
             )}
 
             {/* GitHub Spotlight Section */}
-            {articles.filter(a => a.section === 'spotlight').length > 0 && (
+            {filteredArticles.filter(a => a.section === 'spotlight').length > 0 && (
               <section>
                 <div className="mb-4 pb-2 border-b border-purple-900/30">
                   <h2 className="text-sm font-bold text-purple-400 uppercase tracking-wider flex items-center gap-2">
@@ -551,7 +680,7 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="space-y-6">
-                  {articles
+                  {filteredArticles
                     .filter(a => a.section === 'spotlight')
                     .map((article, index) => (
                       <DevArticleCard
@@ -567,7 +696,7 @@ export default function Home() {
             )}
 
             {/* Earlier Articles Section (Historical Data) */}
-            {articles.filter(a => a.section === 'historical').length > 0 && (
+            {filteredArticles.filter(a => a.section === 'historical').length > 0 && (
               <section className="mt-8">
                 <div className="mb-4 pb-2 border-b border-amber-900/30">
                   <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
@@ -579,7 +708,7 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="space-y-6">
-                  {articles
+                  {filteredArticles
                     .filter(a => a.section === 'historical')
                     .map((article, index) => (
                       <DevArticleCard
@@ -594,41 +723,46 @@ export default function Home() {
               </section>
             )}
 
-            {/* Sentinel for infinite scroll */}
-            <div ref={loadMoreRef} className="h-20" />
+            {/* Sentinel / infinite scroll / end-of-feed only apply to the unsearched feed */}
+            {!isSearchActive && (
+              <>
+                {/* Sentinel for infinite scroll */}
+                <div ref={loadMoreRef} className="h-20" />
 
-            {/* Loading more indicator */}
-            {loadingMore && (
-              <div className="flex flex-col items-center justify-center py-8">
-                <svg className="animate-spin h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span className="mt-3 text-zinc-400">
-                  {inHistoricalMode ? 'Loading from archive...' : 'Loading more articles...'}
-                </span>
-                {inHistoricalMode && (
-                  <span className="text-xs text-zinc-500 mt-1">
-                    Searching historical data
-                  </span>
+                {/* Loading more indicator */}
+                {loadingMore && (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <svg className="animate-spin h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span className="mt-3 text-zinc-400">
+                      {inHistoricalMode ? 'Loading from archive...' : 'Loading more articles...'}
+                    </span>
+                    {inHistoricalMode && (
+                      <span className="text-xs text-zinc-500 mt-1">
+                        Searching historical data
+                      </span>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
 
-            {/* End of feed message */}
-            {!hasMore && articles.length > 0 && !loadingMore && (
-              <div className="text-center py-8 text-zinc-500 border-t border-zinc-800 mt-8">
-                <p className="text-sm">
-                  {inHistoricalMode
-                    ? "You've reached the end of our archive!"
-                    : "That's all for the last 3 days!"
-                  }
-                </p>
-                <p className="text-xs mt-2">
-                  Showing {articles.length} articles
-                  {oldestDate && ` (oldest from ${new Date(oldestDate).toLocaleDateString()})`}
-                </p>
-              </div>
+                {/* End of feed message */}
+                {!hasMore && articles.length > 0 && !loadingMore && (
+                  <div className="text-center py-8 text-zinc-500 border-t border-zinc-800 mt-8">
+                    <p className="text-sm">
+                      {inHistoricalMode
+                        ? "You've reached the end of our archive!"
+                        : "That's all for the last 3 days!"
+                      }
+                    </p>
+                    <p className="text-xs mt-2">
+                      Showing {articles.length} articles
+                      {oldestDate && ` (oldest from ${new Date(oldestDate).toLocaleDateString()})`}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Error message */}
