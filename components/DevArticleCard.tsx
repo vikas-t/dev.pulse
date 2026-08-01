@@ -68,6 +68,18 @@ function getTagTooltip(tag: string): string {
 
 export function DevArticleCard({ article, index, isSaved = false, onToggleSave }: DevArticleCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [copyLabel, setCopyLabel] = useState('Copy link')
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(article.url)
+      setCopyLabel('Copied!')
+      setTimeout(() => setCopyLabel('Copy link'), 2000)
+    } catch {
+      setCopyLabel('Failed')
+      setTimeout(() => setCopyLabel('Copy link'), 2000)
+    }
+  }
 
   return (
     <article className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 hover:border-zinc-700 transition-colors">
@@ -116,6 +128,13 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
           {onToggleSave && (
             <SaveButton isSaved={isSaved} onToggle={onToggleSave} size="sm" />
           )}
+          <button
+            onClick={handleCopyLink}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            aria-label="Copy article link"
+          >
+            {copyLabel}
+          </button>
         </div>
       </div>
 
