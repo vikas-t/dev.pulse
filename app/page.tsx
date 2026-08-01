@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { DevArticleCard } from '@/components/DevArticleCard'
 import { SavedArticlesPanel } from '@/components/SavedArticlesPanel'
 import { Toast } from '@/components/Toast'
@@ -70,6 +70,15 @@ export default function Home() {
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(true)
   const { savedArticles, isSaved, saveArticle, unsaveArticle, savedCount } = useSavedArticles()
   const { toast, showToast, hideToast } = useToast()
+
+  // Compute how many saved articles exist per category (for CategoryBadge popovers)
+  const categorySavedCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const a of savedArticles) {
+      counts[a.category] = (counts[a.category] ?? 0) + 1
+    }
+    return counts
+  }, [savedArticles])
 
   // Ref for IntersectionObserver sentinel
   const loadMoreRef = useRef<HTMLDivElement>(null)
@@ -504,6 +513,7 @@ export default function Home() {
                         index={index}
                         isSaved={isSaved(article.id)}
                         onToggleSave={() => handleToggleSave(article)}
+                        categorySavedCount={categorySavedCounts[article.category] ?? 0}
                       />
                     ))}
                 </div>
@@ -532,6 +542,7 @@ export default function Home() {
                         index={index}
                         isSaved={isSaved(article.id)}
                         onToggleSave={() => handleToggleSave(article)}
+                        categorySavedCount={categorySavedCounts[article.category] ?? 0}
                       />
                     ))}
                 </div>
@@ -560,6 +571,7 @@ export default function Home() {
                         index={index}
                         isSaved={isSaved(article.id)}
                         onToggleSave={() => handleToggleSave(article)}
+                        categorySavedCount={categorySavedCounts[article.category] ?? 0}
                       />
                     ))}
                 </div>
@@ -588,6 +600,7 @@ export default function Home() {
                         index={index}
                         isSaved={isSaved(article.id)}
                         onToggleSave={() => handleToggleSave(article)}
+                        categorySavedCount={categorySavedCounts[article.category] ?? 0}
                       />
                     ))}
                 </div>

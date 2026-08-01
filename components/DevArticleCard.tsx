@@ -48,6 +48,8 @@ interface DevArticleCardProps {
   index?: number
   isSaved?: boolean
   onToggleSave?: () => void
+  /** Number of saved articles in this card's category. Passed through to CategoryBadge for its popover. */
+  categorySavedCount?: number
 }
 
 // Helper to get tooltip text for emoji tags
@@ -66,7 +68,7 @@ function getTagTooltip(tag: string): string {
   return tooltips[tag] || tag
 }
 
-export function DevArticleCard({ article, index, isSaved = false, onToggleSave }: DevArticleCardProps) {
+export function DevArticleCard({ article, index, isSaved = false, onToggleSave, categorySavedCount }: DevArticleCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   return (
@@ -85,7 +87,7 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
             </div>
           )}
 
-          <CategoryBadge category={article.category} />
+          <CategoryBadge category={article.category} savedCount={categorySavedCount} />
           <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
             article.importanceLabel === 'BREAKING' ? 'bg-red-500/20 text-red-400' :
             article.importanceLabel === 'MAJOR' ? 'bg-blue-500/20 text-blue-400' :

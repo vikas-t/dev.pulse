@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { SavedArticleData } from '@/lib/context/SavedArticlesContext'
 import { CategoryBadge } from './CategoryBadge'
 import { formatArticleDate } from '@/lib/utils/formatDate'
@@ -28,6 +29,15 @@ export function SavedArticlesPanel({
   savedArticles,
   onUnsave,
 }: SavedArticlesPanelProps) {
+  // Compute how many saved articles exist per category (for CategoryBadge popovers)
+  const categorySavedCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const a of savedArticles) {
+      counts[a.category] = (counts[a.category] ?? 0) + 1
+    }
+    return counts
+  }, [savedArticles])
+
   // Sort articles by publishedAt date (newest first)
   const sortedArticles = [...savedArticles].sort((a, b) => {
     const dateA = new Date(a.publishedAt).getTime()
@@ -130,6 +140,7 @@ export function SavedArticlesPanel({
                   key={article.id}
                   article={article}
                   onUnsave={() => onUnsave(article.id)}
+                  categorySavedCounts={categorySavedCounts}
                 />
               ))}
             </div>
@@ -144,9 +155,10 @@ export function SavedArticlesPanel({
 interface SavedArticleItemProps {
   article: SavedArticleData
   onUnsave: () => void
+  categorySavedCounts: Record<string, number>
 }
 
-function SavedArticleItem({ article, onUnsave }: SavedArticleItemProps) {
+function SavedArticleItem({ article, onUnsave, categorySavedCounts }: SavedArticleItemProps) {
   const handleClick = () => {
     window.open(article.url, '_blank', 'noopener,noreferrer')
   }
@@ -172,7 +184,7 @@ function SavedArticleItem({ article, onUnsave }: SavedArticleItemProps) {
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-1.5 flex-wrap">
           {isValidCategory(article.category) && (
-            <CategoryBadge category={article.category} />
+            <CategoryBadge category={article.category} savedCount={categorySavedCounts[article.category] ?? 0} />
           )}
           <span
             className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
