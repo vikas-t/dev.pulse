@@ -39,6 +39,7 @@ interface Article {
 
   // Metadata
   author?: string | null
+  authorImage?: string | null
   publishedAt: Date | string
   hnDiscussionUrl?: string | null
 }
@@ -48,6 +49,16 @@ interface DevArticleCardProps {
   index?: number
   isSaved?: boolean
   onToggleSave?: () => void
+}
+
+// Extract initials from an author name (max 2 chars)
+function getInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0].toUpperCase())
+    .join('')
 }
 
 // Helper to get tooltip text for emoji tags
@@ -125,6 +136,24 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
           {article.title}
         </a>
       </h3>
+
+      {/* Author with avatar */}
+      {article.author && (
+        <div className="flex items-center gap-2 mb-3">
+          {article.authorImage ? (
+            <img
+              src={article.authorImage}
+              alt={article.author}
+              className="w-6 h-6 rounded-full object-cover"
+            />
+          ) : (
+            <span className="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-semibold text-zinc-300">
+              {getInitials(article.author)}
+            </span>
+          )}
+          <span className="text-sm text-zinc-400">{article.author}</span>
+        </div>
+      )}
 
       {/* Installation Command (if available) */}
       {article.installCommand && (

@@ -20,6 +20,7 @@ export interface MockArticle {
   githubStars?: number | null
   githubLanguage?: string | null
   author?: string | null
+  authorImage?: string | null
   publishedAt: string
   hnDiscussionUrl?: string | null
   validationLabel?: 'VERIFIED' | 'LIKELY_VALID' | 'UNVERIFIED' | 'SUSPICIOUS' | null
@@ -55,6 +56,8 @@ model = torch.load('model.pt', weights_only=True)`,
   githubRepo: 'pytorch/pytorch',
   githubStars: 78000,
   githubLanguage: 'Python',
+  author: 'PyTorch Team',
+  authorImage: 'https://example.com/avatars/pytorch.png',
   publishedAt: '2024-01-10T10:00:00Z',
   section: 'critical',
 }
@@ -85,6 +88,7 @@ ollama serve --models llama2,codellama,mistral`,
   githubRepo: 'ollama/ollama',
   githubStars: 55000,
   githubLanguage: 'Go',
+  author: 'Ollama Team',
   publishedAt: '2024-01-09T14:00:00Z',
   section: 'noteworthy',
 }
@@ -455,6 +459,7 @@ model = get_peft_model(base_model, config)`,
   frameworks: ['transformers', 'peft'],
   topics: ['llm', 'fine-tuning'],
   author: 'Hu et al.',
+  authorImage: 'https://example.com/avatars/hu.png',
   publishedAt: '2024-01-09T12:00:00Z',
   section: 'noteworthy',
 }

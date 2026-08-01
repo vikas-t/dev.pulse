@@ -40,6 +40,7 @@ interface Article {
   githubStars?: number | null
   githubLanguage?: string | null
   author?: string | null
+  authorImage?: string | null
   publishedAt: Date | string
   hnDiscussionUrl?: string | null
   section?: 'critical' | 'noteworthy' | 'spotlight' | 'historical'
