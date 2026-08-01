@@ -3,8 +3,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { DevArticleCard } from '@/components/DevArticleCard'
 import { SavedArticlesPanel } from '@/components/SavedArticlesPanel'
+import { DensityToggle } from '@/components/DensityToggle'
 import { Toast } from '@/components/Toast'
 import { useSavedArticles } from '@/hooks/useSavedArticles'
+import { useDensity } from '@/hooks/useDensity'
 import { useToast } from '@/hooks/useToast'
 import { formatArticleDate } from '@/lib/utils/formatDate'
 
@@ -69,6 +71,7 @@ export default function Home() {
   // Saved articles panel state (collapsed by default)
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(true)
   const { savedArticles, isSaved, saveArticle, unsaveArticle, savedCount } = useSavedArticles()
+  const { density } = useDensity()
   const { toast, showToast, hideToast } = useToast()
 
   // Ref for IntersectionObserver sentinel
@@ -405,8 +408,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Right side: Refresh button */}
+              {/* Right side: Refresh button + Density toggle */}
               <div className="flex items-center gap-2">
+                <DensityToggle />
                 {/* Refresh Button */}
               <div className="flex flex-col items-end gap-1">
                 <button
@@ -504,6 +508,7 @@ export default function Home() {
                         index={index}
                         isSaved={isSaved(article.id)}
                         onToggleSave={() => handleToggleSave(article)}
+                        density={density}
                       />
                     ))}
                 </div>
@@ -532,6 +537,7 @@ export default function Home() {
                         index={index}
                         isSaved={isSaved(article.id)}
                         onToggleSave={() => handleToggleSave(article)}
+                        density={density}
                       />
                     ))}
                 </div>
@@ -560,6 +566,7 @@ export default function Home() {
                         index={index}
                         isSaved={isSaved(article.id)}
                         onToggleSave={() => handleToggleSave(article)}
+                        density={density}
                       />
                     ))}
                 </div>
@@ -588,6 +595,7 @@ export default function Home() {
                         index={index}
                         isSaved={isSaved(article.id)}
                         onToggleSave={() => handleToggleSave(article)}
+                        density={density}
                       />
                     ))}
                 </div>

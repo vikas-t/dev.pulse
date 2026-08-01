@@ -48,6 +48,7 @@ interface DevArticleCardProps {
   index?: number
   isSaved?: boolean
   onToggleSave?: () => void
+  density?: 'comfortable' | 'compact'
 }
 
 // Helper to get tooltip text for emoji tags
@@ -66,13 +67,16 @@ function getTagTooltip(tag: string): string {
   return tooltips[tag] || tag
 }
 
-export function DevArticleCard({ article, index, isSaved = false, onToggleSave }: DevArticleCardProps) {
+export function DevArticleCard({ article, index, isSaved = false, onToggleSave, density = 'comfortable' }: DevArticleCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const isCompact = density === 'compact'
 
   return (
-    <article className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 hover:border-zinc-700 transition-colors">
+    <article className={`bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-700 transition-colors ${
+      isCompact ? 'p-3' : 'p-6'
+    }`}>
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-3">
+      <div className={`flex items-start justify-between gap-4 ${isCompact ? 'mb-1.5' : 'mb-3'}`}>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Smart Emoji Tags */}
           {article.tags && article.tags.length > 0 && (
@@ -120,7 +124,9 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
       </div>
 
       {/* Title */}
-      <h3 className="text-lg font-semibold text-zinc-100 mb-3 hover:text-blue-400 cursor-pointer">
+      <h3 className={`font-semibold text-zinc-100 hover:text-blue-400 cursor-pointer ${
+        isCompact ? 'text-base mb-1.5' : 'text-lg mb-3'
+      }`}>
         <a href={article.url} target="_blank" rel="noopener noreferrer">
           {article.title}
         </a>
@@ -128,7 +134,7 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
 
       {/* Installation Command (if available) */}
       {article.installCommand && (
-        <div className="mb-4">
+        <div className={isCompact ? 'mb-2' : 'mb-4'}>
           <CodeBlock
             code={article.installCommand}
             language={article.codeLanguage || 'bash'}
@@ -138,7 +144,9 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
       )}
 
       {/* Summary Bullets (always visible) */}
-      <ul className="space-y-1 mb-4 text-sm text-zinc-300">
+      <ul className={`text-sm text-zinc-300 ${
+        isCompact ? 'space-y-0.5 mb-2' : 'space-y-1 mb-4'
+      }`}>
         {article.summary.slice(0, 3).map((item, i) => (
           <li key={i} className="flex items-start gap-2">
             <span className="text-blue-400 mt-1">•</span>
@@ -148,7 +156,7 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
       </ul>
 
       {/* Tech Tags */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className={`flex flex-wrap gap-2 ${isCompact ? 'mb-2' : 'mb-4'}`}>
         {article.languages.map(lang => (
           <span key={lang} className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-xs rounded border border-blue-500/20">
             {lang}
@@ -171,7 +179,9 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
 
       {/* Expanded Content */}
       {isExpanded && (
-        <div className="mt-6 pt-6 border-t border-zinc-800 space-y-6">
+        <div className={`border-t border-zinc-800 space-y-6 ${
+          isCompact ? 'mt-3 pt-3' : 'mt-6 pt-6'
+        }`}>
           {/* Code Example */}
           {article.codeExample && (
             <div>
