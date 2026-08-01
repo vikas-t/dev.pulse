@@ -22,18 +22,23 @@ export function CodeBlock({ code, language = 'bash', showCopy = true }: CodeBloc
 
   return (
     <div className="relative group">
-      <div className="absolute -top-3 left-3 px-2 py-0.5 bg-zinc-800 rounded text-xs text-zinc-400 font-mono">
-        {language}
+      {/* Header bar showing language + copy button */}
+      <div className="flex items-center justify-between bg-zinc-800 border border-zinc-700 rounded-t-lg px-4 py-1.5">
+        <span className="text-xs text-zinc-400 font-mono flex items-center gap-1.5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500/70" aria-hidden="true"></span>
+          {language}
+        </span>
+        {showCopy && (
+          <button
+            onClick={handleCopy}
+            className="px-2 py-0.5 bg-zinc-700 hover:bg-zinc-600 rounded text-xs text-zinc-300 transition-colors"
+          >
+            {copied ? '✓ Copied!' : 'Copy'}
+          </button>
+        )}
       </div>
-      {showCopy && (
-        <button
-          onClick={handleCopy}
-          className="absolute top-2 right-2 px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          {copied ? '✓ Copied!' : 'Copy'}
-        </button>
-      )}
-      <pre className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 overflow-x-auto">
+      {/* Code body */}
+      <pre className="bg-zinc-900 border border-t-0 border-zinc-800 rounded-b-lg p-4 overflow-x-auto">
         <code className="text-sm font-mono text-zinc-300">{code}</code>
       </pre>
     </div>
