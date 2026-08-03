@@ -2,7 +2,7 @@
 
 import { SavedArticleData } from '@/lib/context/SavedArticlesContext'
 import { CategoryBadge } from './CategoryBadge'
-import { formatArticleDate } from '@/lib/utils/formatDate'
+import { formatArticleDate, formatArticleDateTooltip } from '@/lib/utils/formatDate'
 
 interface SavedArticlesPanelProps {
   isCollapsed: boolean
@@ -207,7 +207,7 @@ function SavedArticleItem({ article, onUnsave }: SavedArticleItemProps) {
       <div className="flex items-center gap-1.5 text-xs text-zinc-500">
         <span>{article.source}</span>
         <span>•</span>
-        <span>{formatArticleDate(article.publishedAt)}</span>
+        <span title={formatArticleDateTooltip(article.publishedAt)}>{formatArticleDate(article.publishedAt)}</span>
       </div>
     </div>
   )

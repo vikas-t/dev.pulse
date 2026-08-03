@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { CategoryBadge } from './CategoryBadge'
 import { CodeBlock } from './CodeBlock'
 import { SaveButton } from './SaveButton'
-import { formatArticleDate } from '@/lib/utils/formatDate'
+import { formatArticleDate, formatArticleDateTooltip } from '@/lib/utils/formatDate'
 
 interface Article {
   id: string
@@ -112,7 +112,7 @@ export function DevArticleCard({ article, index, isSaved = false, onToggleSave }
               <span>•</span>
             </>
           )}
-          <span className="text-zinc-400">{formatArticleDate(article.publishedAt)}</span>
+          <span className="text-zinc-400" title={formatArticleDateTooltip(article.publishedAt)}>{formatArticleDate(article.publishedAt)}</span>
           {onToggleSave && (
             <SaveButton isSaved={isSaved} onToggle={onToggleSave} size="sm" />
           )}

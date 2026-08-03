@@ -6,7 +6,7 @@ import { SavedArticlesPanel } from '@/components/SavedArticlesPanel'
 import { Toast } from '@/components/Toast'
 import { useSavedArticles } from '@/hooks/useSavedArticles'
 import { useToast } from '@/hooks/useToast'
-import { formatArticleDate } from '@/lib/utils/formatDate'
+import { formatArticleDate, formatArticleDateTooltip } from '@/lib/utils/formatDate'
 
 interface RefreshStatus {
   lastRefreshAt: string | null
@@ -446,7 +446,7 @@ export default function Home() {
 
                 {refreshStatus?.lastRefreshAt && (
                   <p className="text-xs text-zinc-500 hidden sm:block">
-                    Last updated: {formatArticleDate(refreshStatus.lastRefreshAt)}
+                    Last updated: <span title={formatArticleDateTooltip(refreshStatus.lastRefreshAt)}>{formatArticleDate(refreshStatus.lastRefreshAt)}</span>
                   </p>
                 )}
               </div>
